@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// DTO policy: clients must never provide authority-bearing fields such as
+// role, sellerId, buyerId, price, amount, or status. Services must derive them
+// from the authenticated subject and trusted database state (SR-15, SR-22).
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  WITHDRAWN
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String
+  nickname      String      @unique
+  bio           String?
+  avatarUrl     String?
+  phone         String?
+  role          Role        @default(USER)
+  status        UserStatus  @default(ACTIVE)
+  trustScore    Int         @default(0)
+  completedTx   Int         @default(0)
+  loginFails    Int         @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime    @default(now())
+
+  products             Product[]      @relation("ProductSeller")
+  favorites            Favorite[]
+  buyerChats           Chat[]         @relation("ChatBuyer")
+  sellerChats          Chat[]         @relation("ChatSeller")
+  messages             ChatMessage[]
+  buyerTransactions    Transaction[]  @relation("TransactionBuyer")
+  sellerTransactions   Transaction[]  @relation("TransactionSeller")
+  reviewsWritten       Review[]       @relation("ReviewAuthor")
+  reviewsReceived      Review[]       @relation("ReviewTarget")
+  reports              Report[]       @relation("ReportReporter")
+  notifications        Notification[]
+  blocksMade           Block[]        @relation("Blocker")
+  blocksReceived       Block[]        @relation("Blocked")
+  adminLogs            AdminLog[]     @relation("AdminActions")
+  auditLogs            AuditLog[]     @relation("AuditActor")
+}
+
+enum ProductStatus {
+  ON_SALE
+  RESERVED
+  SOLD
+  HIDDEN
+}
+
+model Product {
+  id           String        @id @default(uuid())
+  sellerId     String
+  seller       User          @relation("ProductSeller", fields: [sellerId], references: [id])
+  title        String
+  description  String
+  price        Int
+  category     String
+  region       String?
+  status       ProductStatus @default(ON_SALE)
+  viewCount    Int           @default(0)
+  isHidden     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+
+  images        ProductImage[]
+  favorites     Favorite[]
+  chats         Chat[]
+  transactions  Transaction[]
+
+  @@index([category])
+  @@index([price])
+  @@index([createdAt])
+}
+
+model ProductImage {
+  id         String  @id @default(uuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url        String
+  order      Int     @default(0)
+}
+
+model Favorite {
+  id         String  @id @default(uuid())
+  userId     String
+  productId  String
+  user       User    @relation(fields: [userId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+model Chat {
+  id         String        @id @default(uuid())
+  productId  String
+  buyerId    String
+  sellerId   String
+  product    Product       @relation(fields: [productId], references: [id])
+  buyer      User          @relation("ChatBuyer", fields: [buyerId], references: [id])
+  seller     User          @relation("ChatSeller", fields: [sellerId], references: [id])
+  createdAt  DateTime      @default(now())
+  messages   ChatMessage[]
+
+  @@unique([productId, buyerId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  chatId    String
+  senderId  String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id])
+  content   String
+  imageUrl  String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+model Block {
+  id         String @id @default(uuid())
+  blockerId  String
+  blockedId  String
+  blocker    User   @relation("Blocker", fields: [blockerId], references: [id])
+  blocked    User   @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+enum TxStatus {
+  REQUESTED
+  RESERVED
+  PAYMENT_PENDING
+  PAID
+  SHIPPING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+model Transaction {
+  id         String   @id @default(uuid())
+  productId  String
+  buyerId    String
+  sellerId   String
+  product    Product  @relation(fields: [productId], references: [id])
+  buyer      User     @relation("TransactionBuyer", fields: [buyerId], references: [id])
+  seller     User     @relation("TransactionSeller", fields: [sellerId], references: [id])
+  status     TxStatus @default(REQUESTED)
+  amount     Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  payment  Payment?
+  reviews  Review[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  transactionId   String        @unique
+  transaction     Transaction   @relation(fields: [transactionId], references: [id])
+  amount          Int
+  status          PaymentStatus @default(PENDING)
+  idempotencyKey  String        @unique
+  escrowReleased  Boolean       @default(false)
+  pgTxId          String?
+  createdAt       DateTime      @default(now())
+}
+
+model Review {
+  id             String      @id @default(uuid())
+  transactionId  String
+  authorId       String
+  targetId       String
+  transaction    Transaction @relation(fields: [transactionId], references: [id])
+  author         User        @relation("ReviewAuthor", fields: [authorId], references: [id])
+  target         User        @relation("ReviewTarget", fields: [targetId], references: [id])
+  rating         Int
+  comment        String?
+  createdAt      DateTime    @default(now())
+}
+
+enum ReportType {
+  PRODUCT
+  USER
+  CHAT
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  reporter    User         @relation("ReportReporter", fields: [reporterId], references: [id])
+  type        ReportType
+  targetId    String
+  reason      String
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  admin     User     @relation("AdminActions", fields: [adminId], references: [id])
+  action    String
+  targetId  String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation("AuditActor", fields: [userId], references: [id])
+  event     String
+  ip        String?
+  detail    String?
+  createdAt DateTime @default(now())
+}
