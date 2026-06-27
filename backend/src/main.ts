@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -20,6 +21,7 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix('api');
   await app.register(helmet);
+  await app.register(cookie);
   await app.register(cors, {
     origin: corsOrigin,
     credentials: true,

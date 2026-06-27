@@ -3,6 +3,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import configuration, { AppConfig } from './config/configuration';
 import { validateEnv } from './config/env.validation';
+import { AuthModule } from './modules/auth/auth.module';
+import { PrismaModule } from './modules/prisma/prisma.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { validateEnv } from './config/env.validation';
         },
       ],
     }),
+    PrismaModule,
+    RedisModule,
+    AuthModule,
+    UsersModule,
   ],
 })
 export class AppModule {}
