@@ -91,7 +91,7 @@ model Product {
   images       ProductImage[]
   favorites    Favorite[]
   transactions Transaction[]
-  @@index([category]) @@index([price]) @@index([createdAt])
+  @@index([category]) @@index([price]) @@index([createdAt]) @@index([sellerId])
 }
 
 model ProductImage {
@@ -216,7 +216,7 @@ model Report {
   adminId     String?
   admin       User?        @relation(fields: [adminId], references: [id])
   type        ReportType
-  targetId    String                           // 신고 대상 객체 id
+  targetId    String                           // USER/PRODUCT id 또는 CHAT 신고 시 ChatMessage.id
   reason      String
   description String?
   status      ReportStatus @default(PENDING)
@@ -229,14 +229,17 @@ model Report {
 
 // ── 알림 ────────────────────────────────
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  type      String                             // CHAT, TX, REPORT, FAVORITE
-  message   String                             // 민감정보 과다 노출 금지 (SR-39)
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  type       String                            // CHAT, TX, REPORT, FAVORITE
+  message    String                            // 민감정보 과다 노출 금지 (SR-39)
+  targetType String?
+  targetId   String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
   @@index([userId, isRead])
+  @@index([targetType, targetId])
 }
 
 // ── 관리자/감사 로그 ────────────────────

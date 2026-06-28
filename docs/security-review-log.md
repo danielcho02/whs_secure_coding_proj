@@ -91,7 +91,7 @@
 
 ## Reports / Blocks / Admin Moderation
 
-- Reports: `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 access token subject와 서버 상태로만 결정한다. USER/PRODUCT 대상만 허용하며 자기 자신 신고와 자기 상품 신고는 400, 중복 신고는 DB unique 제약과 서비스 검사로 409 처리한다. 정지된 사용자의 신고 생성은 403으로 차단한다.
+- Reports: `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 access token subject와 서버 상태로만 결정한다. USER/PRODUCT/CHAT 대상을 허용하며, CHAT은 `ChatMessage.id` 기준으로 채팅 참여자만 상대 메시지를 신고할 수 있다. 자기 자신 신고, 자기 상품 신고, 자기 메시지 신고는 400이고 중복 신고는 DB unique 제약과 서비스 검사로 409 처리한다. 정지된 사용자의 신고 생성은 403으로 차단한다.
 - Blocks: `blockerId`는 current user id로만 설정한다. 자기 자신 차단은 400, 중복 차단은 기존 Block 반환으로 idempotent 처리한다.
 - Block 적용: `createChat`, `sendMessage`, `createTransaction`은 buyer/seller 양방향 Block 관계를 조회하고 존재하면 403으로 거부한다.
 - Admin 권한: 모든 `/api/admin/*` 컨트롤러는 `JwtAuthGuard + RolesGuard + @Roles(Role.ADMIN)`로 보호한다. 일반 사용자는 403이고, `role=ADMIN`이어도 `User.status !== ACTIVE`이면 403이다.
@@ -101,3 +101,11 @@
 - 마지막 관리자 보호: 관리자 자기 자신 정지는 400, 마지막 ACTIVE 관리자 정지는 403으로 거부한다.
 - 응답 제한: 관리자 목록/로그 응답은 `passwordHash`, refresh token, Toss secret/key, token, phone/email을 선택하지 않는다.
 - SQLi 방어: 신규 Reports/Blocks/Admin 모듈과 기존 연결 제한은 Prisma ORM만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.
+
+## Notifications
+
+- BOLA 방어: 알림 목록과 읽음 처리는 `currentUser.id`를 기준으로 `notification.userId`를 필터링한다.
+- IDOR 방어: `POST /notifications/:id/read`는 `{ id, userId: currentUser.id }` 조건으로 조회하고, 타인 알림과 없는 알림을 모두 404로 처리한다.
+- Mass assignment 방어: `userId`는 query/body DTO에 존재하지 않으며 whitelist/forbidNonWhitelisted 정책으로 주입을 거부한다.
+- 응답 제한: 알림 응답은 `id`, `type`, `title`, `message/body`, `isRead`, `createdAt`, `target`만 반환하고 email, phone, passwordHash, refresh token, Toss secret/key를 선택하지 않는다.
+- SQLi 방어: Notifications 모듈은 Prisma ORM만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.

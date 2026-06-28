@@ -185,12 +185,14 @@ describe('ReportsService', () => {
     );
     expect(prisma.report.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        data: {
           reporterId,
           type: ReportType.CHAT,
           targetId: messageId,
+          reason: '욕설 메시지',
+          description: undefined,
           status: ReportStatus.PENDING,
-        }),
+        },
       }),
     );
     expect(result.targetType).toBe(ReportType.CHAT);
