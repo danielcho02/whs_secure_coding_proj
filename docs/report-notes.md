@@ -1,0 +1,43 @@
+# 최종 보고서 작성 메모
+
+## 요구사항 분석
+
+- 중고거래 서비스의 핵심 도메인을 Auth, Users, Products, Chats, Transactions로 분리했다.
+- 요구사항은 `docs/requirements.md`의 FR/SR ID와 연결했다.
+- Transactions 작업은 FR-23 거래 요청, FR-24 예약, FR-25 취소, FR-26 완료, FR-27 내역, FR-28 후기, FR-29 상태 관리를 대상으로 했다.
+- 보안 요구사항은 SR-08, SR-10, SR-11, SR-14, SR-15, SR-26, SR-35, SR-39를 우선 적용했다.
+
+## 설계
+
+- NestJS 모듈 구조를 도메인별로 분리하고 controller는 routing/guard/DTO, service는 권한/상태/DB 로직을 담당한다.
+- Prisma schema는 User, Product, Chat, Transaction, Review 관계를 기준으로 설계했다.
+- 전역 `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })`로 mass assignment를 방어한다.
+- 거래 상태 전이는 서버 상태 머신으로만 수행하고, 상품 상태와 거래 상태 변경은 Prisma `$transaction`에서 함께 처리한다.
+
+## 구현
+
+- Auth: bcrypt password hash, JWT access/refresh, Redis refresh session, 사용자 프로필 API.
+- Products: 상품 CRUD, 작성자 검증, 검색, 찜, 이미지 업로드 검증, 민감정보 제외 응답.
+- Chats: 상품별 1:1 채팅방, 참여자 전용 조회/메시지/읽음 처리, WebSocket 참여자 검증.
+- Transactions: 거래 요청/예약/취소/완료/목록/후기 API, 서버 기준 amount, 당사자 검증, 중복 진행 거래 및 중복 후기 방지.
+- Dev seed: 정상 기능 확인용 seller/buyer/admin, 상품/채팅/거래/후기 더미 데이터.
+
+## 테스트
+
+- Vitest mock 기반 unit/controller/DTO 테스트를 도메인별로 작성했다.
+- 최근 전체 backend 테스트 결과는 18 files / 138 tests 통과.
+- Backend lint/build, frontend build, Prisma validate를 실행해 정적 검증을 수행했다.
+- Docker/DB 기반 검증까지 수행했다. `docker compose config`, `docker compose up -d`, Prisma migration, dev seed, backend start를 확인했다.
+
+## 보안 고려사항
+
+- 클라이언트가 보낸 userId, role, amount, price, status를 신뢰하지 않는다.
+- 객체 ID 기반 API는 DB의 소유자/참여자 필드와 current user id로 검증한다.
+- 응답에서 passwordHash, email, phone 등 민감정보를 선택하지 않는다.
+- 검색은 Prisma ORM 조건만 사용하고 unsafe raw query를 사용하지 않는다.
+- 파일 업로드는 확장자, MIME, 매직바이트, 크기, 이중 확장자를 검증한다.
+- 거래 완료 이후 일반 취소를 거부해 환불/결제 흐름과 분리한다.
+
+## 남은 작업
+
+- Payments/refund 도메인 구현 시 `PAID` 이후 환불/취소 흐름과 audit log 연계.
