@@ -100,6 +100,25 @@ Transactions 보안 정책:
 - 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - Prisma ORM만 사용하며 `$queryRawUnsafe`는 거래 모듈에서 사용하지 않는다.
 
+## Payments API
+
+Base URL: `/api/payments`
+
+- `POST /api/payments`: 인증 필요. `transactionId`, `idempotencyKey`만 허용하며 amount는 서버가 `Transaction.amount`와 `Product.price`를 대조해 결정
+- `POST /api/payments/:id/approve`: 구매자만 가능. Toss success URL의 `paymentKey`, `orderId`, `amount`를 DB와 대조한 뒤 Toss confirm API 호출
+- `POST /api/payments/webhook`: 공개 endpoint. Toss webhook 서명 검증 후 DB Payment와 amount/status를 대조해 idempotent하게 상태 반영
+- `POST /api/payments/:id/confirm`: 구매자만 가능. `PAID` 결제의 구매 확정 처리, `escrowReleased=true`, 거래 완료, 상품 판매완료 전이
+- `POST /api/payments/:id/refund`: 거래 당사자만 가능. 구매 확정 전 환불만 허용하며 Toss cancel API 연동
+- `GET /api/payments/:id/receipt`: 거래 당사자만 가능. 영수증/거래/상품 요약과 공개 사용자 정보만 반환
+
+Payments 보안 정책:
+
+- 개발/시연 결제는 Toss Payments sandbox/test 기반으로 검증한다. fake QR 이미지 업로드나 단순 “결제 완료” 버튼은 사용하지 않는다.
+- `amount`, `buyerId`, `sellerId`, `status`, `escrowReleased` 같은 권한/금액/상태 필드는 클라이언트 본문에서 받지 않는다.
+- 동일 `idempotencyKey` 재요청은 기존 Payment를 반환하고, 같은 거래에 다른 키로 중복 결제하면 409로 거부한다.
+- Toss secret key와 webhook secret은 backend `.env`에만 둔다. frontend에는 client key만 노출 가능하다.
+- `PAID` 이후에도 구매 확정 전까지 `escrowReleased=false`로 정산을 보류한다.
+
 ## Dev Seed
 
 개발 환경에서 정상 거래/채팅 흐름을 확인하기 위한 더미 데이터만 제공한다. 취약점 시연용 데이터나 권한 우회용 계정은 포함하지 않는다.
@@ -157,7 +176,14 @@ JWT_ACCESS_EXPIRES=15m
 JWT_REFRESH_SECRET=change-me
 JWT_REFRESH_EXPIRES=7d
 CORS_ORIGIN=http://localhost:5173
-PG_WEBHOOK_SECRET=change-me
+PG_WEBHOOK_SECRET=change-me # legacy fallback
+TOSS_CLIENT_KEY=test_ck_change-me
+TOSS_SECRET_KEY=test_sk_change-me
+TOSS_WEBHOOK_SECRET=change-me
+PAYMENT_SUCCESS_URL=http://localhost:5173/payments/success
+PAYMENT_FAIL_URL=http://localhost:5173/payments/fail
+PAYMENT_CANCEL_URL=http://localhost:5173/payments/cancel
+FRONTEND_ORIGIN=http://localhost:5173
 LOGIN_MAX_ATTEMPTS=5
 RATE_LIMIT_WINDOW=60
 RATE_LIMIT_MAX=100

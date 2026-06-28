@@ -1,5 +1,45 @@
 # 개발 로그
 
+## 2026-06-28 / branch: feat/payments-secure-escrow
+
+### Payments / 안전거래 구현
+
+- 구현 기능:
+  - `POST /api/payments`: 구매자 전용 안전결제 생성, 서버 기준 amount 저장, idempotency 재요청 처리, transaction `PAYMENT_PENDING` 전이.
+  - `POST /api/payments/:id/approve`: Toss success URL의 `paymentKey/orderId/amount`를 DB와 대조한 뒤 Toss confirm API 호출, 승인 성공 시 `Payment.status=PAID`, `Transaction.status=PAID`.
+  - `POST /api/payments/webhook`: 공개 endpoint이지만 raw body HMAC 서명 검증 후 처리, amount/status DB 대조, 중복 웹훅 idempotent 처리.
+  - `POST /api/payments/:id/confirm`: 구매자 구매 확정, `escrowReleased=true`, 거래 완료, 상품 판매완료 전이.
+  - `POST /api/payments/:id/refund`: 당사자 전용 환불, 구매 확정 후 일반 환불 제한, Toss cancel API adapter 연동.
+  - `GET /api/payments/:id/receipt`: 거래 당사자 전용 영수증 조회, 민감 사용자 정보 제외.
+  - Toss provider adapter와 mock 기반 unit test 분리.
+  - frontend payments API wrapper 추가.
+- DB 변경:
+  - `PaymentStatus`에 `FAILED`, `CANCELED` 추가.
+  - `Payment`에 `orderId`, `orderName`, `receiptUrl`, `paidAt`, `refundedAt`, `updatedAt` 추가.
+  - migration `20260628050000_add_payments_toss_fields` 추가.
+- 문서:
+  - README, API spec, architecture, database design, security review log, test checklist, report notes 갱신.
+
+### 테스트 결과
+
+- `cd backend && npm install`: 통과, 취약 패키지 0건.
+- `cd backend && npx prisma validate`: 통과.
+- `cd backend && npm run lint`: 통과.
+- `cd backend && npm run test`: 통과. 22 files / 162 tests.
+- `cd backend && npm run build`: 통과.
+- `cd backend && timeout 8s npm run start`: Nest application successfully started 및 Payments routes 매핑 확인 후 timeout 종료.
+- `docker compose config`: 통과.
+- `docker compose up -d`: 통과. Postgres/Redis running.
+- `cd backend && npx prisma migrate status`: 최종 통과, database schema up to date.
+- `cd backend && npm run db:seed`: 통과.
+- `cd frontend && npm run build`: 통과.
+- `git diff --check`: 통과.
+
+### 미실행/환경 제약
+
+- Toss sandbox 실제 카드/간편결제 승인·취소는 외부 test key와 webhook endpoint 설정이 필요해 unit test에서는 provider mock으로 검증했다.
+- `npm run start`는 장기 실행 명령이라 프로세스를 남기지 않기 위해 timeout으로 종료했다.
+
 ## 2026-06-28 / branch: feat/transactions-secure-flow
 
 ### 커밋 기준 작업 요약
