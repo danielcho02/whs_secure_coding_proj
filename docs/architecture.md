@@ -135,15 +135,22 @@ POST /auth/logout → Redis 화이트리스트에서 jti 제거 + 쿠키 삭제
 
 ```
 1. POST /payments (transactionId, idempotencyKey)
-   - 서버가 transaction → product.price 조회하여 금액 재계산 (SR-22)
+   - 서버가 transaction.amount와 product.price를 대조하여 금액 확정 (SR-22)
    - idempotencyKey로 중복 결제 차단 (SR-24)
    - 상태 PAYMENT_PENDING
-2. PG사 결제 → Webhook POST /payments/webhook
-   - HMAC 서명 검증 (PG_WEBHOOK_SECRET, SR-23)
-   - 검증 성공 시에만 PAID 전이
-3. 에스크로: PAID여도 판매자 정산 보류 (SR-33)
-4. 구매자 구매 확정 → COMPLETED → 판매자 정산 (SR-27, SR-35)
-5. 모든 결제/환불/정산 → 감사 로그 (SR-28)
+2. Toss sandbox/test 결제창 또는 위젯
+   - frontend는 client key만 사용하고 secret key는 서버에만 둔다
+3. POST /payments/:id/approve
+   - success URL의 paymentKey/orderId/amount를 서버가 DB와 대조
+   - 서버가 Toss confirm API 호출
+   - 승인 성공 시 PAID 전이
+4. PG사 결제 웹훅 → POST /payments/webhook
+   - raw body 기반 HMAC 서명 검증 (TOSS_WEBHOOK_SECRET, SR-23)
+   - 검증 성공 후에도 DB amount/orderId/paymentKey와 대조
+   - confirm API와 중복될 수 있으므로 idempotent 처리
+5. 에스크로: PAID여도 판매자 정산 보류 (escrowReleased=false)
+6. 구매자 구매 확정 → COMPLETED + escrowReleased=true → 판매자 정산 가능 상태 (SR-27, SR-35)
+7. 모든 결제/환불/정산 상태 변경 → 감사 로그 (SR-28)
 ```
 
 ---

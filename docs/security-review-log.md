@@ -33,3 +33,16 @@
 - 상태 동기화: 예약/취소/완료에서 Prisma `$transaction`과 조건부 update로 `Transaction.status`와 `Product.status`를 함께 갱신한다.
 - 중복 후기 방지: 서비스에서 기존 review를 확인하고, schema에 `Review @@unique([transactionId, authorId])`를 추가해 DB 레벨 방어를 준비했다.
 - 응답 제한: buyer/seller/author/target은 공개 정보만 선택하고 민감정보를 조회하지 않는다.
+
+## Payments
+
+- Toss sandbox/test 흐름: QR 이미지 업로드나 단순 완료 버튼 없이 `POST /payments` 결제 생성, `POST /payments/:id/approve` Toss confirm, `POST /payments/webhook` 상태 동기화를 사용한다.
+- Amount 서버 계산: 결제 생성 DTO는 `transactionId`, `idempotencyKey`만 허용하고 amount/user/status 필드 주입을 거부한다. 저장 금액은 `Transaction.amount`와 `Product.price`를 서버에서 대조한다.
+- Buyer 검증: 결제 생성, Toss 승인, 구매 확정은 `transaction.buyerId === currentUser.id`일 때만 가능하다.
+- Idempotency: 동일 `idempotencyKey` 재요청은 기존 Payment를 반환하고, 같은 transaction에 다른 키로 중복 결제하면 409로 거부한다.
+- Toss 승인 검증: success URL의 `paymentKey`, `orderId`, `amount`를 DB 값과 대조한 뒤에만 Toss confirm API를 호출한다.
+- Webhook 검증: 공개 endpoint지만 raw body HMAC 서명 검증을 통과해야 하며, amount/status payload를 그대로 신뢰하지 않고 DB Payment와 대조한다.
+- Escrow 정책: `PAID` 이후에도 `escrowReleased=false`로 유지하고, 구매자 구매 확정 시에만 `escrowReleased=true`와 `Transaction.status=COMPLETED`로 전이한다.
+- Refund 정책: 당사자만 환불 가능하고, `escrowReleased=true` 이후 일반 환불은 제한한다.
+- 응답 제한: receipt는 거래 당사자만 조회 가능하고 buyer/seller의 passwordHash, email, phone을 선택하지 않는다.
+- SQLi 방어: Payments 모듈은 Prisma ORM만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.

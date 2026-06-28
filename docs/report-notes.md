@@ -20,12 +20,13 @@
 - Products: 상품 CRUD, 작성자 검증, 검색, 찜, 이미지 업로드 검증, 민감정보 제외 응답.
 - Chats: 상품별 1:1 채팅방, 참여자 전용 조회/메시지/읽음 처리, WebSocket 참여자 검증.
 - Transactions: 거래 요청/예약/취소/완료/목록/후기 API, 서버 기준 amount, 당사자 검증, 중복 진행 거래 및 중복 후기 방지.
+- Payments: Toss Payments sandbox/test 기반 안전결제 생성, Toss 승인 confirm adapter, 웹훅 서명 검증, 에스크로 구매 확정, 환불, 영수증 조회 API.
 - Dev seed: 정상 기능 확인용 seller/buyer/admin, 상품/채팅/거래/후기 더미 데이터.
 
 ## 테스트
 
 - Vitest mock 기반 unit/controller/DTO 테스트를 도메인별로 작성했다.
-- 최근 전체 backend 테스트 결과는 18 files / 138 tests 통과.
+- 최근 전체 backend 테스트 결과는 22 files / 162 tests 통과.
 - Backend lint/build, frontend build, Prisma validate를 실행해 정적 검증을 수행했다.
 - Docker/DB 기반 검증까지 수행했다. `docker compose config`, `docker compose up -d`, Prisma migration, dev seed, backend start를 확인했다.
 
@@ -37,7 +38,12 @@
 - 검색은 Prisma ORM 조건만 사용하고 unsafe raw query를 사용하지 않는다.
 - 파일 업로드는 확장자, MIME, 매직바이트, 크기, 이중 확장자를 검증한다.
 - 거래 완료 이후 일반 취소를 거부해 환불/결제 흐름과 분리한다.
+- 결제 생성은 amount를 body에서 받지 않고 서버 DB의 transaction/product 금액을 대조한다.
+- Toss success URL의 amount도 신뢰하지 않고 confirm API 호출 전 DB 금액과 비교한다.
+- Webhook은 공개 endpoint지만 HMAC 서명 검증과 DB 대조를 통과해야 상태를 반영한다.
+- 구매 확정 전에는 `escrowReleased=false`로 정산을 보류하고, 구매자 확정 이후에만 `true`로 바꾼다.
 
 ## 남은 작업
 
-- Payments/refund 도메인 구현 시 `PAID` 이후 환불/취소 흐름과 audit log 연계.
+- Toss sandbox 개발자센터에서 실제 test key/webhook secret을 설정한 수동 결제 승인·취소 검증.
+- 결제 UI는 `frontend/src/api/payments.ts` 기반으로 Toss Payment Widget 또는 checkout redirect 화면에서 확장.

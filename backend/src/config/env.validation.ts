@@ -12,7 +12,14 @@ interface EnvVars {
   CORS_ORIGIN: string;
   UPLOAD_DIR: string;
   MAX_UPLOAD_SIZE: number;
-  PG_WEBHOOK_SECRET: string;
+  PG_WEBHOOK_SECRET?: string;
+  TOSS_CLIENT_KEY: string;
+  TOSS_SECRET_KEY: string;
+  TOSS_WEBHOOK_SECRET?: string;
+  PAYMENT_SUCCESS_URL: string;
+  PAYMENT_FAIL_URL: string;
+  PAYMENT_CANCEL_URL: string;
+  FRONTEND_ORIGIN?: string;
   LOGIN_MAX_ATTEMPTS: number;
   RATE_LIMIT_WINDOW: number;
   RATE_LIMIT_MAX: number;
@@ -30,7 +37,26 @@ const schema = Joi.object<EnvVars>({
   CORS_ORIGIN: Joi.string().uri().required(),
   UPLOAD_DIR: Joi.string().required(),
   MAX_UPLOAD_SIZE: Joi.number().integer().positive().required(),
-  PG_WEBHOOK_SECRET: Joi.string().min(8).required(),
+  PG_WEBHOOK_SECRET: Joi.string().min(8).optional(),
+  TOSS_CLIENT_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(8).required(),
+    otherwise: Joi.string().min(1).default('test_ck_development'),
+  }),
+  TOSS_SECRET_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(8).required(),
+    otherwise: Joi.string().min(1).default('test_sk_development'),
+  }),
+  TOSS_WEBHOOK_SECRET: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(8).required(),
+    otherwise: Joi.string().min(8).optional(),
+  }),
+  PAYMENT_SUCCESS_URL: Joi.string().uri().default('http://localhost:5173/payments/success'),
+  PAYMENT_FAIL_URL: Joi.string().uri().default('http://localhost:5173/payments/fail'),
+  PAYMENT_CANCEL_URL: Joi.string().uri().default('http://localhost:5173/payments/cancel'),
+  FRONTEND_ORIGIN: Joi.string().uri().optional(),
   LOGIN_MAX_ATTEMPTS: Joi.number().integer().positive().required(),
   RATE_LIMIT_WINDOW: Joi.number().integer().positive().required(),
   RATE_LIMIT_MAX: Joi.number().integer().positive().required(),

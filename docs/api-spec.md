@@ -118,6 +118,7 @@ emit "message" { chatId, content }      → 발신자=참여자 확인 + escape(
 |--------|------|------|------|
 | POST | `/` | 결제 요청 | 🔒 구매자만, Idempotency, RateLimit |
 | POST | `/webhook` | PG 결제 알림 | 서명 검증(SR-23) |
+| POST | `/:id/approve` | Toss 결제 승인 콜백 처리 | 🔒 구매자만, 금액 검증 |
 | POST | `/:id/confirm` | 구매 확정 | 🔒 구매자만 (SR-26) |
 | POST | `/:id/refund` | 환불 요청 | 🔒 당사자+상태 검증 (SR-25) |
 | GET | `/:id/receipt` | 영수증 | 🔒 당사자만 (SR-30) |
@@ -126,15 +127,60 @@ emit "message" { chatId, content }      → 발신자=참여자 확인 + escape(
 POST /api/payments
 { "transactionId":"...", "idempotencyKey":"uuid-v4" }
 ```
-> 🔒 **금액은 요청 본문에서 받지 않는다.** 서버가 `transaction → product.price`로 재계산(SR-22).
-> 🔒 `idempotencyKey` UNIQUE로 중복 결제 차단(SR-24).
+→ 201 { "success": true, "data": {
+  "id": "...",
+  "amount": 300000,
+  "status": "PENDING",
+  "orderId": "order_...",
+  "orderName": "아이폰 15",
+  "checkout": {
+    "clientKey": "test_ck_...",
+    "customerKey": "<buyerId>",
+    "successUrl": "http://localhost:5173/payments/success",
+    "failUrl": "http://localhost:5173/payments/fail",
+    "cancelUrl": "http://localhost:5173/payments/cancel"
+  }
+} }
+```
+> 🔒 **금액은 요청 본문에서 받지 않는다.** 서버가 `transaction.amount`와 `transaction.product.price`를 대조해 서버 DB 기준 금액만 저장한다(SR-22).
+> 🔒 `idempotencyKey`, `orderId`, `Payment.transactionId` UNIQUE로 중복 결제를 차단한다(SR-24).
+> 🔒 같은 transaction에 다른 `idempotencyKey`로 재요청하면 409.
+
+```http
+POST /api/payments/:id/approve
+{ "paymentKey":"tgen_...", "orderId":"order_...", "amount":300000 }
+```
+> Toss success URL에서 받은 값을 backend로 전달한다. 서버는 `orderId`, `paymentKey`, `amount`를 DB Payment와 대조한 뒤 Toss confirm API를 호출한다. amount mismatch는 Toss 호출 전 400.
+> 승인 성공 시 `Payment.status=PAID`, `Payment.pgTxId=<paymentKey>`, `paidAt`, `receiptUrl` 저장, `Transaction.status=PAID`.
+
 ```http
 POST /api/payments/webhook
-Headers: X-PG-Signature: <hmac-sha256>
-{ "pgTxId":"...", "status":"PAID", "amount":300000 }
+Headers:
+  x-toss-signature: v1=<hmac-sha256>
+  x-toss-timestamp: <timestamp>
+{ "paymentKey":"tgen_...", "orderId":"order_...", "status":"DONE", "amount":300000 }
 ```
-> 🔒 `HMAC-SHA256(body, PG_WEBHOOK_SECRET)` 비교 후에만 PAID 반영. 서명 불일치 → 401(SR-23).
-> 🔒 정산은 `confirm` 이후에만(`escrowReleased=true`)(SR-27).
+> 🔒 raw body 기반 HMAC 검증 후에만 반영. 서명 불일치 → 401(SR-23).
+> 🔒 웹훅 body의 amount/status는 그대로 신뢰하지 않고 DB Payment/Transaction과 대조한다.
+> 🔒 중복 웹훅은 상태가 이미 반영된 경우 idempotent하게 무시한다.
+> 🔒 `DONE|PAID → PAID`, `CANCELED|CANCELLED|ABORTED|EXPIRED → CANCELED`, `REFUNDED|PARTIAL_CANCELED → REFUNDED`.
+
+```http
+POST /api/payments/:id/confirm
+{}
+```
+> 구매 확정 전용 API. 구매자만 가능하며 `Payment.status=PAID`, `escrowReleased=false`, `Transaction.status=PAID|SHIPPING`에서만 `Transaction.status=COMPLETED`, `Product.status=SOLD`, `escrowReleased=true`로 전이한다(SR-26, SR-27).
+
+```http
+POST /api/payments/:id/refund
+{ "reason":"거래 취소" }
+```
+> 구매자 또는 판매자만 가능. `escrowReleased=true` 이후 일반 환불은 제한한다. `PAID` 환불은 Toss cancel API를 호출하고, 성공 시 `Payment.status=REFUNDED`, `Transaction.status=REFUNDED`로 전이한다.
+
+```http
+GET /api/payments/:id/receipt
+```
+> 구매자 또는 판매자만 가능. amount, status, orderId, pgTxId, receiptUrl, paidAt/refundedAt, 거래/상품 요약, 공개 사용자 정보만 반환하며 passwordHash/email/phone은 제외한다(SR-30, SR-39).
 
 ---
 
