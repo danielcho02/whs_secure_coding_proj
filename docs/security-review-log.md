@@ -9,6 +9,14 @@
 - DTO whitelist: 회원가입/로그인/프로필 DTO에서 role, status, trustScore, completedTx 같은 권한/상태 필드 주입을 거부한다.
 - 응답 제한: 공개 프로필과 인증 응답에서 passwordHash 등 내부 필드를 제외한다.
 
+## Dev Seed 데이터 보안
+
+- Seed 계정은 기존 개발 비밀번호 정책을 따르되 DB에는 bcrypt hash만 저장하고, console 출력에는 passwordHash를 포함하지 않는다.
+- Payment seed는 `dev_seed_*` 형태의 테스트 `pgTxId/orderId/idempotencyKey`만 사용하고 실제 Toss secret/key나 운영 결제 키를 저장하지 않는다.
+- Notification/AdminLog/Report seed에는 password hash, token, refresh token, 실제 결제 secret/key, phone/email 등 민감정보를 넣지 않는다.
+- CHAT report seed는 실제 `ChatMessage.id`를 target으로 사용하며, reporter가 채팅 참여자이고 자기 메시지를 신고하지 않도록 구성한다.
+- Seed 보강은 시연용 DB fixture 추가이며 실제 서비스 로직, API 권한 정책, DTO whitelist, schema를 변경하지 않는다.
+
 ## 정지 사용자 기존 accessToken 재사용 취약점
 
 ### 발견된 취약점

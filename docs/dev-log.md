@@ -1,5 +1,38 @@
 # 개발 로그
 
+## 2026-06-28 / branch: chore/seed-admin-demo-data
+
+### 프론트/최종 시연용 dev seed 데이터 보강
+
+- 구현 기능:
+  - 기존 `seller@example.com`, `buyer@example.com`, `admin@example.com` 계정을 유지하고 `suspended@example.com`, `banned@example.com`, `secondbuyer@example.com`, `secondseller@example.com` seed 계정을 추가했다.
+  - 상품 seed를 `ON_SALE`, `RESERVED`, `SOLD`, `HIDDEN`, 신고/이미지/검색 키워드 시연용으로 확장했다.
+  - buyer/seller, secondbuyer/seller 채팅방과 메시지를 추가하고, CHAT 신고 대상 메시지를 실제 `ChatMessage.id`로 연결했다.
+  - `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED` 거래와 `PENDING`, `PAID`, `REFUNDED` payment seed를 추가했다.
+  - `USER`, `PRODUCT`, `CHAT` report와 `PENDING`, `REVIEWING`, `RESOLVED`, `REJECTED` 상태, Block, Notification, AdminLog 시연 데이터를 추가했다.
+- 보안/운영 기준:
+  - 서비스/API/보안 정책/schema는 변경하지 않고 `backend/prisma/seed.ts`만 보강했다.
+  - 실제 Toss secret/key, refresh token, 실제 결제 키, passwordHash 출력은 추가하지 않았다.
+  - unique 제약이 있는 데이터는 upsert, unique 제약이 없는 메시지/알림/AdminLog는 seed 전용 식별 조건의 find/update/create 방식으로 반복 실행 중복을 방지했다.
+- 문서:
+  - `README.md`, `docs/test-checklist.md`, `docs/report-notes.md`, `docs/security-review-log.md` 갱신.
+- 검증 결과:
+  - `npm install`: 통과, 취약 패키지 0건.
+  - `npx prisma validate`: 통과. Prisma 7 예정 deprecation warning(`package.json#prisma`)만 표시.
+  - `npm run lint`: 통과.
+  - `npm run test`: 통과. 33 files / 231 tests.
+  - `npm run build`: 통과.
+  - `docker compose config`: 통과.
+  - `docker compose up -d`: 통과. Postgres/Redis running.
+  - `npx prisma migrate status`: database schema up to date.
+  - `npm run db:seed` 2회 연속 실행: 통과. seed summary는 users=8, products=11, chats=2, transactions=7, payments=4, reports=5, blocks=3, notifications=4, adminLogs=6.
+  - DB 요약 확인: 상태별 거래 7종, payment `PENDING/PAID/REFUNDED` 및 `escrowReleased=false/true`, CHAT report 참여자/상대 메시지 조건 확인.
+  - `rg '\$queryRawUnsafe|\$queryRaw' backend/src backend/prisma`: production 코드 사용 없음. spec mock과 미호출 검증만 확인.
+  - `rg 'TOSS_SECRET|SECRET_KEY|sk_live|passwordHash.*console|refreshToken' backend/prisma backend/src`: seed 내 민감정보/실제 결제키/비밀번호 hash 출력 없음. 기존 env validation과 auth refresh token 코드만 확인.
+  - `git diff --check`: 통과.
+- 커밋:
+  - 사용자 요청에 따라 커밋하지 않았다.
+
 ## 2026-06-28 / branch: feat/notifications-api
 
 ### Notifications API 및 프론트 전 백엔드 보완

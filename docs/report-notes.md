@@ -24,6 +24,7 @@
 - Reports/Blocks/Admin: 사용자/상품 신고, 사용자 차단, 관리자 신고 처리, 상품 hide/restore, 사용자 suspend/restore, 관리자 로그 조회 API.
 - Notifications: 프론트 전 백엔드 최종 감사에서 누락된 알림 목록/읽음 API를 발견하고, 본인 알림 조회와 BOLA 방어를 추가했다.
 - Dev seed: 정상 기능 확인용 seller/buyer/admin, 상품/채팅/거래/후기 더미 데이터.
+- 프론트/시연 전 seed 데이터 보강: 정지/차단 사용자, 상태별 상품/거래/결제, CHAT 신고 대상 메시지, 관리자 신고 처리 상태, 알림 target, AdminLog를 실제 DB 관계에 맞춰 추가했다.
 
 ## 테스트
 
@@ -31,6 +32,7 @@
 - 최근 전체 backend 테스트 결과는 33 files / 231 tests 통과.
 - Backend `npm install`, Prisma validate, lint, test, build를 실행해 정적 검증을 수행했다.
 - Docker/DB 기반 start 검증은 DB 미기동 상태에서 Prisma P1001을 확인한 뒤 `docker compose up -d`로 Postgres/Redis를 시작하고 `timeout 8s npm run start`에서 Nest application successfully started를 확인했다.
+- Dev seed 검증은 `npm run db:seed`를 2회 연속 실행해 반복 실행 시 unique 충돌 없이 갱신되는지 확인했다.
 
 ## 보안 고려사항
 
@@ -52,6 +54,7 @@
 - 관리자 상품 restore는 기본 `HIDDEN -> ON_SALE`이지만, 활성/완료 거래가 있는 상품은 재판매 방지를 위해 409로 거부한다.
 - 정지 사용자는 로그인/refresh와 기존 accessToken 기반 HTTP API, WebSocket 연결에서 차단된다.
 - 관리자 목록/로그 응답은 passwordHash, token, secret, Toss key, refresh token, phone/email을 반환하지 않는다.
+- Seed 데이터도 같은 보안 원칙을 적용해 bcrypt password hash만 저장하고, console/AdminLog/report/payment fixture에 실제 secret, refresh token, 실제 결제 key, phone/email을 넣지 않는다.
 
 ## 보안 패치 사례: 정지 사용자 기존 accessToken 재사용
 

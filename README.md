@@ -199,7 +199,7 @@ Notifications 보안 정책:
 
 ## Dev Seed
 
-개발 환경에서 정상 거래/채팅 흐름을 확인하기 위한 더미 데이터만 제공한다. 취약점 시연용 데이터나 권한 우회용 계정은 포함하지 않는다.
+개발 환경에서 프론트엔드 개발과 최종 시연에 필요한 더미 데이터만 제공한다. 실제 서비스 로직을 mock으로 바꾸지 않으며, 취약점 시연용 우회 계정이나 실제 결제 키는 포함하지 않는다.
 
 Transactions 구현에서 `Review` 모델에 `@@unique([transactionId, authorId])`가 추가되었고, Notifications API 보완에서 `Notification.targetType/targetId`와 `Product.sellerId` index migration이 추가되었다.
 
@@ -224,7 +224,7 @@ Docker/DB 검증 결과:
 - `docker compose config`: 통과
 - `docker compose up -d`: 통과, `whs-market-postgres`와 `whs-market-redis` healthy
 - `npx prisma migrate deploy`: 통과, schema up to date
-- `npm run db:seed`: 통과
+- `npm run db:seed`: 2회 연속 실행 통과
 - `npm run start`: Nest application successfully started 확인. 서버 프로세스를 남기지 않기 위해 검증 시 timeout으로 종료
 
 Seed 계정:
@@ -232,17 +232,24 @@ Seed 계정:
 - `seller@example.com` / `Password123!`
 - `buyer@example.com` / `Password123!`
 - `admin@example.com` / `Password123!`
+- `suspended@example.com` / `Password123!` (`SUSPENDED`)
+- `banned@example.com` / `Password123!` (`BANNED`)
+- `secondbuyer@example.com` / `Password123!`
+- `secondseller@example.com` / `Password123!`
 
 Seed 데이터:
 
-- 판매자 상품 3개: `ON_SALE`, `RESERVED`, `SOLD`
-- buyer/seller 채팅방 1개와 메시지 4개
-- `REQUESTED`, `RESERVED`, `COMPLETED` 거래 각 1개
+- 상품 11개: `ON_SALE`, `RESERVED`, `SOLD`, `HIDDEN`, 신고/이미지/검색 키워드 시연용 포함
+- buyer/seller 및 secondbuyer/seller 채팅방 2개와 메시지 여러 개
+- `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED` 거래 각 1개
+- `PENDING`, `PAID`, `REFUNDED` payment와 `escrowReleased=false/true` 상태
 - 완료 거래에 대한 후기 1개
-- buyer가 별도 `blocked@example.com` 사용자를 차단한 Block 1개
-- 상품 신고 1개와 seed 확인용 AdminLog 1개
+- `USER`, `PRODUCT`, `CHAT` report 및 `PENDING`, `REVIEWING`, `RESOLVED`, `REJECTED` 상태
+- buyer가 `blocked@example.com`, `banned@example.com`, `secondbuyer@example.com` 사용자를 차단한 Block 데이터
+- read/unread notification과 `CHAT`, `TRANSACTION`, `REPORT` target
+- `HIDE_PRODUCT`, `RESTORE_PRODUCT`, `SUSPEND_USER`, `RESTORE_USER`, `UPDATE_REPORT_STATUS` AdminLog
 
-Seed 비밀번호는 bcrypt로 해시하며 passwordHash를 출력하지 않는다. 여러 번 실행해도 기존 개발 데이터를 갱신하는 방식으로 동작한다.
+Seed 비밀번호는 bcrypt로 해시하며 passwordHash를 출력하지 않는다. Toss paymentKey/orderId는 `dev_seed_*` 형태의 테스트 값만 사용하고, secret key나 refresh token은 seed에 넣지 않는다. 여러 번 실행해도 기존 개발 데이터를 갱신하는 방식으로 동작한다.
 
 ## Backend Environment
 
