@@ -6,6 +6,7 @@ import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { ChatsModule } from './modules/chats/chats.module';
 import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -30,6 +31,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     ProductsModule,
+    ChatsModule,
   ],
 })
 export class AppModule {}
