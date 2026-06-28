@@ -6,12 +6,13 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 interface RequestWithUser {
   user?: {
     role?: Role;
+    status?: UserStatus;
   };
 }
 
@@ -30,6 +31,12 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const userStatus = request.user?.status;
+
+    if (userStatus !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Active user status is required');
+    }
+
     const userRole = request.user?.role;
 
     if (userRole && requiredRoles.includes(userRole)) {

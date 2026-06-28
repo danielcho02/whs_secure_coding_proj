@@ -27,9 +27,9 @@
 ## 테스트
 
 - Vitest mock 기반 unit/controller/DTO 테스트를 도메인별로 작성했다.
-- 최근 전체 backend 테스트 결과는 22 files / 162 tests 통과.
-- Backend lint/build, frontend build, Prisma validate를 실행해 정적 검증을 수행했다.
-- Docker/DB 기반 검증까지 수행했다. `docker compose config`, `docker compose up -d`, Prisma migration, dev seed, backend start를 확인했다.
+- 최근 전체 backend 테스트 결과는 30 files / 216 tests 통과.
+- Backend `npm install`, Prisma validate, lint, test, build를 실행해 정적 검증을 수행했다.
+- Docker/DB 기반 start 검증은 DB 미기동 상태에서 Prisma P1001을 확인한 뒤 `docker compose up -d`로 Postgres/Redis를 시작하고 `timeout 8s npm run start`에서 Nest application successfully started를 확인했다.
 
 ## 보안 고려사항
 
@@ -43,12 +43,57 @@
 - Toss success URL의 amount도 신뢰하지 않고 confirm API 호출 전 DB 금액과 비교한다.
 - Webhook은 공개 endpoint지만 HMAC 서명 검증과 DB 대조를 통과해야 상태를 반영한다.
 - 구매 확정 전에는 `escrowReleased=false`로 정산을 보류하고, 구매자 확정 이후에만 `true`로 바꾼다.
-- 신고 생성은 `reporterId/status/adminId`를 body에서 받지 않고 서버가 결정한다. 중복 신고는 `Report @@unique([reporterId, type, targetId])`와 서비스 검사로 409 처리한다.
+- 신고 생성은 `reporterId/status/adminId`를 body에서 받지 않고 서버가 결정한다. 중복 신고는 `Report @@unique([reporterId, type, targetId])`와 서비스 검사로 409 처리하며, 정지된 사용자의 신고 생성은 403으로 차단한다.
 - 차단 관계는 `createChat`, `sendMessage`, `createTransaction`에 연결되어 양방향 Block이 있으면 403을 반환한다.
-- 관리자 API는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하고 모든 관리자 조치를 `AdminLog`에 남긴다.
+- 관리자 API는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하고 모든 관리자 조치를 `AdminLog`에 남긴다. 관리자 API는 ADMIN role뿐 아니라 `User.status=ACTIVE`도 요구한다.
 - 관리자 상품 restore는 기본 `HIDDEN -> ON_SALE`이지만, 활성/완료 거래가 있는 상품은 재판매 방지를 위해 409로 거부한다.
-- 정지 사용자는 로그인/refresh와 Products, Chats, Transactions, Payments의 신규 변경 행위가 제한된다. 읽기 API는 본인 데이터 확인 목적상 허용한다.
+- 정지 사용자는 로그인/refresh와 기존 accessToken 기반 HTTP API, WebSocket 연결에서 차단된다.
 - 관리자 목록/로그 응답은 passwordHash, token, secret, Toss key, refresh token, phone/email을 반환하지 않는다.
+
+## 보안 패치 사례: 정지 사용자 기존 accessToken 재사용
+
+보고서용 요약 문장:
+
+> 보안 검토 과정에서 JWT 인증 가드가 토큰 서명만 검증하고 DB의 사용자 상태를 재확인하지 않는 문제가 발견되었다. 이로 인해 정지된 사용자가 기존 accessToken이 만료되기 전까지 일부 API에 접근할 수 있는 위험이 있었다. 패치에서는 JwtAuthGuard와 WebSocket 인증 흐름에서 사용자 상태를 DB 기준으로 재확인하고, 관리자 API는 role뿐 아니라 ACTIVE 상태를 요구하도록 수정하였다.
+
+### 취약점 발견
+
+- 기존 `JwtAuthGuard`와 `ChatsGateway`는 JWT 서명을 검증한 뒤 payload의 `sub/email/role`을 그대로 `request.user` 또는 `socket.data.user`에 저장했다.
+- `RolesGuard`는 `role=ADMIN` 여부만 확인하고 DB의 최신 `User.status`를 확인하지 않았다.
+- 따라서 사용자가 `SUSPENDED`/`BANNED`/`WITHDRAWN` 처리되어도 기존 accessToken 또는 WebSocket token이 만료되기 전까지 일부 API 접근 위험이 남았다.
+
+### 원인
+
+- JWT payload를 최신 권한 정보처럼 사용했다.
+- 권한 판단 시 DB의 `User.status`를 매 요청 재확인하지 않았다.
+- 관리자 API도 role만 기준으로 삼아 정지된 ADMIN 토큰을 차단하지 못할 수 있었다.
+
+### 영향
+
+- 정지된 일반 사용자가 기존 accessToken으로 상품, 채팅, 거래, 신고 등 일부 기능에 접근할 수 있었다.
+- 정지된 관리자가 기존 ADMIN 토큰으로 `/api/admin/*` 관리자 API를 호출할 수 있었다.
+- WebSocket 연결에서 정지 사용자가 `join`, `read`, `message` 이벤트를 계속 사용할 수 있었다.
+
+### 패치
+
+- `JwtAuthGuard`는 JWT payload를 `sub` 식별 힌트로만 사용하고 DB에서 `id/email/role/status`를 재조회한다.
+- DB User가 없거나 `status !== ACTIVE`이면 HTTP API 요청을 401로 거부한다.
+- `request.user`는 JWT payload가 아니라 DB에서 조회한 값으로만 채운다.
+- `RolesGuard`는 role 검사 전에 `request.user.status === ACTIVE`를 요구한다.
+- `ChatsGateway`는 연결 시 DB status를 재확인하고 inactive user는 즉시 disconnect한다.
+- `ReportsService`는 신고 생성 초입에서 reporter가 ACTIVE인지 확인하고 정지 사용자는 403으로 거부한다.
+- 사용하지 않는 `OwnershipGuard`는 삭제하고, 객체별 권한 검증은 service-level ownership/participant validation이 표준임을 문서화했다.
+
+### 검증 결과
+
+- `SUSPENDED` 사용자의 유효한 accessToken이 `JwtAuthGuard`에서 401 처리되는 테스트를 추가했다.
+- ACTIVE 사용자는 기존 HTTP 인증 플로우가 유지되고, `request.user.role/status`가 JWT payload가 아니라 DB 값으로 채워지는 테스트를 추가했다.
+- `SUSPENDED ADMIN`의 관리자 API 접근이 `RolesGuard`에서 403 처리되는 테스트를 추가했다.
+- `ACTIVE ADMIN`은 관리자 API guard를 통과하고, `ACTIVE USER`는 403 처리되는 테스트를 추가했다.
+- `SUSPENDED` 사용자의 WebSocket 연결이 거부/disconnect되는 테스트를 추가했다.
+- `SUSPENDED` 사용자의 신고 생성이 403 처리되는 테스트를 추가했다.
+- 전체 backend 검증은 `npm run lint`, `npm run test`(30 files / 216 tests), `npm run build`, `timeout 8s npm run start`로 통과했다.
+- 추가 검색에서 `$queryRawUnsafe`는 production 코드가 아니라 spec mock과 미호출 검증에서만 확인되었고, Toss secret/key 하드코딩은 발견되지 않았다.
 
 ## 남은 작업
 

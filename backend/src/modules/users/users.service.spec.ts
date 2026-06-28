@@ -34,6 +34,7 @@ const selfUser: AuthenticatedUser = {
   id: 'user-1',
   email: 'alice@example.com',
   role: Role.USER,
+  status: UserStatus.ACTIVE,
 };
 
 describe('UsersService', () => {
@@ -119,6 +120,7 @@ describe('UsersService', () => {
         id: 'user-2',
         email: 'bob@example.com',
         role: Role.USER,
+        status: UserStatus.ACTIVE,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -131,6 +133,7 @@ describe('UsersService', () => {
         id: 'admin-1',
         email: 'admin@example.com',
         role: Role.ADMIN,
+        status: UserStatus.ACTIVE,
       }),
     ).resolves.toEqual(baseUser);
   });

@@ -15,7 +15,8 @@
                  │  ┌─────────────────────────────────┐ │
                  │  │ Global: Helmet, CORS, RateLimit  │ │
                  │  │ Pipe: ValidationPipe(whitelist)  │ │
-                 │  │ Guard: JwtAuth → Roles → Owner   │ │
+                │  │ Guard: JwtAuth → Roles           │ │
+                │  │ Service: owner/participant check  │ │
                  │  │ Interceptor: ResponseFilter, Log │ │
                  │  │ Filter: GlobalExceptionFilter    │ │
                  │  └─────────────────────────────────┘ │
@@ -47,14 +48,18 @@ NestJS 요청은 다음 순서로 통과한다. **이 순서가 접근제어의 
  → RateLimit (SR-37)
  → ValidationPipe(whitelist:true) — DTO 외 필드 제거 (Mass Assignment 방어, SR-15)
  → JwtAuthGuard — 인증 확인 (SR-34)
- → RolesGuard — 역할 검사 (SR-05, SR-09, SR-36)
- → OwnershipGuard — 객체 소유자/참여자 검증 (SR-06,07,08,10,35) ★ BOLA 방어
+    - JWT 서명 검증 후 payload는 `sub` 식별 힌트로만 사용
+    - DB의 `User.id/email/role/status` 재조회
+    - `User.status !== ACTIVE`이면 기존 accessToken이 만료되지 않았어도 401
+ → RolesGuard — 역할 + ACTIVE 상태 검사 (SR-05, SR-09, SR-36)
+    - `/api/admin/*`는 `role=ADMIN`과 `status=ACTIVE`를 모두 요구
  → Controller → Service
+ → Service-level ownership/participant validation — 객체 소유자/참여자 검증 (SR-06,07,08,10,35) ★ BOLA 방어
  → Interceptor: 응답 필드 필터 (SR-39) + 감사 로그 (NFR-04)
  → 예외 시 GlobalExceptionFilter — 내부 메시지 은폐 (NFR-07)
 ```
 
-> **핵심 설계 원칙**: 권한 검사는 **항상 서버에서, 데이터 접근 직전에**. 클라이언트가 보낸 `userId`/`role`/`price`는 절대 신뢰하지 않고 토큰의 주체(sub)와 DB 값으로만 판단한다.
+> **핵심 설계 원칙**: 권한 검사는 **항상 서버에서, 데이터 접근 직전에**. 클라이언트가 보낸 `userId`/`role`/`price`는 절대 신뢰하지 않고 토큰의 주체(sub)와 DB 값으로만 판단한다. 공통 인증은 Guard에서 처리하고, 객체별 소유자/참여자 검증은 현재 사용 중인 service layer 표준으로 수행한다.
 
 ---
 
@@ -106,12 +111,14 @@ POST /auth/logout → Redis 화이트리스트에서 jti 제거 + 쿠키 삭제
 
 - `Block`은 사용자 간 상호작용 제한을 위한 서버 기준 관계다.
 - `createChat`, `sendMessage`, `createTransaction`은 buyer/seller 양방향 중 하나라도 Block이 있으면 403을 반환한다.
-- `User.status !== ACTIVE` 사용자는 로그인/refresh가 거부되고, Products/Chats/Transactions/Payments의 신규 변경 행위가 403으로 제한된다.
-- 읽기 API는 본인 데이터 확인 목적상 기존 소유자/참여자 검증을 통과하면 허용한다.
+- `User.status !== ACTIVE` 사용자는 로그인/refresh가 거부된다.
+- HTTP API 인증은 `JwtAuthGuard`가 매 요청 DB status를 재확인하므로 기존 accessToken이 남아 있어도 401로 차단된다.
+- WebSocket 연결도 handshake token의 `sub`로 DB status를 재확인하며 inactive user는 연결 즉시 disconnect된다.
+- 객체별 읽기/수정 권한은 service-level ownership/participant validation을 통과해야 한다.
 
 ### 관리자 조치 흐름
 
-- 모든 `/api/admin/*`는 `JwtAuthGuard → RolesGuard(@Roles(ADMIN))`를 통과해야 한다.
+- 모든 `/api/admin/*`는 `JwtAuthGuard → RolesGuard(@Roles(ADMIN))`를 통과해야 하며, `RolesGuard`는 ADMIN role뿐 아니라 `User.status=ACTIVE`도 요구한다.
 - 신고 처리, 상품 hide/restore, 사용자 suspend/restore는 실제 DB 상태를 변경하고 `AdminLog`에 append-only로 기록한다.
 - 상품 restore는 기본적으로 `HIDDEN -> ON_SALE`이지만, 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 방지를 위해 거부한다.
 - 관리자 로그 조회는 pagination만 제공하며 수정/삭제 API를 만들지 않는다.
@@ -173,7 +180,7 @@ POST /auth/logout → Redis 화이트리스트에서 jti 제거 + 쿠키 삭제
 
 ```
 1. 클라이언트 connect 시 액세스 토큰 전달 (auth payload)
-2. 게이트웨이 handshake에서 토큰 검증 (SR-34)
+2. 게이트웨이 handshake에서 토큰 서명 검증 후 payload `sub`로 DB User status 재확인 (SR-34)
 3. 채팅방 join 시 참여자 여부 DB 검증 (SR-07) ★ 채팅 IDOR 방어
 4. 메시지 송신 시 발신자=참여자 확인, 메시지 본문 escape (SR-13)
 ```

@@ -1,5 +1,41 @@
 # 개발 로그
 
+## 2026-06-28 / branch: fix/session-status-guard
+
+### 정지 사용자 기존 accessToken 재사용 보안 패치
+
+- 구현 기능:
+  - `JwtAuthGuard`가 JWT payload를 `sub` 식별 힌트로만 사용하고, DB에서 `User.id/email/role/status`를 재조회하도록 변경했다.
+  - `User.status !== ACTIVE`이면 기존 accessToken이 만료되지 않았더라도 HTTP API 요청을 401로 거부한다.
+  - `request.user`는 JWT payload의 `email/role`이 아니라 DB 조회 결과로 채운다.
+  - `RolesGuard`가 `role`뿐 아니라 `status=ACTIVE`도 요구하도록 변경했다. `role=ADMIN`이어도 `SUSPENDED`이면 관리자 API는 403이다.
+  - `ChatsGateway`가 WebSocket 연결 시 token `sub` 기준으로 DB User를 재조회하고 inactive user는 `disconnect(true)` 처리한다.
+  - `ReportsService`가 신고 생성 초입에서 reporter ACTIVE 여부를 확인하고 정지 사용자의 신고 생성을 403으로 차단한다.
+  - 사용하지 않는 `OwnershipGuard` 죽은 코드를 삭제하고, 객체별 권한 검증은 service-level ownership/participant validation 표준으로 문서를 정리했다.
+- 문서:
+  - `docs/security-review-log.md`: “정지 사용자 기존 accessToken 재사용 취약점” 별도 섹션 추가.
+  - `docs/report-notes.md`: 보고서용 “취약점 발견 → 원인 → 영향 → 패치 → 검증 결과” 흐름 추가.
+  - `docs/test-checklist.md`: JwtAuthGuard/RolesGuard/WebSocket/ReportsService 회귀 검증 항목 추가.
+  - `docs/architecture.md`: pipeline의 `OwnershipGuard` 표현을 service-level ownership/participant validation 기준으로 정정.
+  - `README.md`: 보안 패치 요약과 검증 명령을 짧게 추가.
+- 테스트:
+  - RED 확인: 신규 회귀 테스트 추가 후 `JwtAuthGuard`, `RolesGuard`, `ChatsGateway`, `ReportsService` 관련 테스트 실패 확인.
+  - GREEN 확인: targeted test 통과. 4 files / 20 tests.
+  - 전체 테스트: `npm run test` 통과. 30 files / 216 tests.
+- 검증 결과:
+  - `npm install`: 통과, 취약 패키지 0건.
+  - `npx prisma validate`: 통과. Prisma 7 예정 deprecation warning(`package.json#prisma`)만 표시.
+  - `npm run lint`: 통과.
+  - `npm run test`: 통과. 30 files / 216 tests.
+  - `npm run build`: 통과.
+  - `timeout 8s npm run start`: 최초 실행은 DB 미기동으로 Prisma P1001 실패. `docker compose up -d`로 Postgres/Redis 시작 후 재실행하여 Nest application successfully started 확인, timeout 종료.
+  - `rg '\$queryRawUnsafe' backend/src`: production 코드 사용 없음. spec mock과 `not.toHaveBeenCalled()` 검증만 확인.
+  - `rg 'passwordHash|refreshToken|TOSS_SECRET|SECRET_KEY' backend/src/modules backend/src/common`: auth password/refresh 처리와 민감정보 미노출 테스트만 확인, Toss secret/key 하드코딩 없음.
+- 미실행:
+  - frontend 파일 변경이 없어 frontend build는 실행하지 않았다.
+- 커밋:
+  - 사용자 요청에 따라 커밋하지 않았다.
+
 ## 2026-06-28 / branch: feat/reports-admin-moderation
 
 ### Reports / Blocks / Admin Moderation 구현

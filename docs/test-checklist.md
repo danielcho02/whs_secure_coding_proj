@@ -5,6 +5,8 @@
 - DTO validation: 이메일/비밀번호/닉네임 검증, role/status 등 권한 필드 주입 거부.
 - Service: bcrypt hash 저장, 로그인 실패 처리, refresh token rotation, logout/session 제거.
 - Controller: 인증 관련 route 동작 및 guard wiring 검증.
+- JwtAuthGuard: JWT payload는 `sub` 식별 힌트로만 사용하고 DB의 `id/email/role/status`로 `request.user`를 채우는지 검증.
+- JwtAuthGuard: 유효한 accessToken이어도 DB `User.status=SUSPENDED`이면 401.
 
 ## Products
 
@@ -16,7 +18,8 @@
 
 - DTO validation: `buyerId`, `sellerId`, `senderId`, `chatId`, `isRead` 주입 거부.
 - Service: 참여자 전용 조회/메시지/읽음 처리, XSS payload 일반 문자열 처리, 민감정보 응답 제외.
-- Gateway/Controller: WebSocket 참여자 검증 경로와 HTTP guard 적용 검증.
+- Gateway/Controller: WebSocket DB status 재확인, 참여자 검증 경로와 HTTP guard 적용 검증.
+- Gateway: DB `User.status=SUSPENDED` 사용자 연결은 disconnect, ACTIVE 사용자 연결은 허용.
 
 ## Transactions
 
@@ -41,31 +44,31 @@
 
 - Reports DTO: `reporterId`, `status`, `adminId`, `role` 주입 400.
 - Reports Service: USER/PRODUCT 신고 생성 성공, 존재하지 않는 대상 404, 자기 자신 신고 400, 자기 상품 신고 400, 중복 신고 409.
+- Reports Service: DB `User.status=SUSPENDED` 사용자의 신고 생성 403.
 - Reports Service: 내 신고 목록은 current user의 신고만 반환.
 - Blocks DTO: `blockerId`, `status`, `role` 주입 400.
 - Blocks Service: 차단 생성 성공, 자기 자신 차단 400, 중복 차단 기존 Block 반환, 해제는 current user 관계만 삭제.
 - Chats/Transactions: 차단 후 `createChat`, `sendMessage`, `createTransaction` 403.
 - Admin Controllers: 모든 admin controller에 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)` 적용.
+- RolesGuard: `ADMIN + SUSPENDED`는 403, `ADMIN + ACTIVE`는 통과, `USER + ACTIVE`는 관리자 API 403.
 - Admin Service: 신고 목록/상세 조회, 신고 상태 변경과 AdminLog 생성.
 - Admin Service: 상품 hide/restore와 AdminLog 생성, restore 시 활성/완료 거래 상품 재판매 방지.
 - Admin Service: 사용자 suspend/restore와 AdminLog 생성, 자기 자신 suspend 거부, 마지막 ACTIVE 관리자 suspend 거부.
-- Suspended users: Products/Chats/Transactions/Payments 주요 변경 행위 403.
+- Suspended users: 기존 accessToken이 남아 있어도 HTTP API는 401, WebSocket 연결은 disconnect.
 - Admin Logs: pagination 조회 성공, actor/action/targetType/targetId/reason/createdAt 반환, 민감정보 제외.
 - Static: 신규 모듈 및 연결 제한에서 `$queryRawUnsafe` 사용 없음.
 
 ## 최근 실행 결과
 
-- Backend test: `npm run test` 통과. 29 files / 209 tests.
+- Backend install: `npm install` 통과. 취약 패키지 0건.
+- Backend test: `npm run test` 통과. 30 files / 216 tests.
 - Backend lint: `npm run lint` 통과.
 - Backend build: `npm run build` 통과.
 - Frontend build: 미실행. 이번 작업에서 frontend 파일은 변경하지 않았다.
 - Prisma validate: `npx prisma validate` 통과.
-- Docker compose config: `docker compose config` 통과.
-- Docker compose up: `docker compose up -d` 통과. Postgres/Redis running.
-- Prisma migration: 최초 `npx prisma migrate status`에서 `20260628090000_add_reports_admin_moderation` 미적용 확인 후 `npx prisma migrate deploy`로 적용. 최종 `npx prisma migrate status` 통과.
-- Dev seed: `npm run db:seed` 통과.
-- Backend start: `timeout 8s npm run start`로 Nest application successfully started 및 Reports/Blocks/Admin routes 매핑 확인 후 timeout으로 종료.
-- Diff whitespace: `git diff --check` 통과.
+- Backend start: 최초 `timeout 8s npm run start`는 DB 미기동으로 Prisma P1001 실패. `docker compose up -d` 후 재실행하여 Nest application successfully started 확인, timeout으로 종료.
+- Static search: `rg '\$queryRawUnsafe' backend/src`에서 production 코드 사용 없음. spec mock과 미호출 검증만 확인.
+- Static search: `rg 'passwordHash|refreshToken|TOSS_SECRET|SECRET_KEY' backend/src/modules backend/src/common`에서 auth password/refresh 처리와 민감정보 미노출 테스트만 확인, Toss secret/key 하드코딩 없음.
 
 ## 미실행/환경 제약
 

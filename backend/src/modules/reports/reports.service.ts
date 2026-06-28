@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -42,6 +43,7 @@ export class ReportsService {
     reporterId: string,
     dto: CreateReportDto,
   ): Promise<ReportResponse> {
+    await this.assertReporterActive(reporterId);
     await this.assertReportTargetAllowed(reporterId, dto);
 
     const existingReport = await this.prisma.report.findUnique({
@@ -107,6 +109,17 @@ export class ReportsService {
       limit,
       total,
     };
+  }
+
+  private async assertReporterActive(reporterId: string): Promise<void> {
+    const reporter = await this.prisma.user.findUnique({
+      where: { id: reporterId },
+      select: { id: true, status: true },
+    });
+
+    if (!reporter || reporter.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Only active users can create reports');
+    }
   }
 
   private async assertReportTargetAllowed(

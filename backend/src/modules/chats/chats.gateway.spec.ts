@@ -2,9 +2,10 @@
 
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig } from '../../config/configuration';
+import { PrismaService } from '../prisma/prisma.service';
 import { ChatsGateway } from './chats.gateway';
 import { ChatsService } from './chats.service';
 
@@ -14,6 +15,7 @@ const user = {
   id: '11111111-1111-4111-8111-111111111111',
   email: 'buyer@example.com',
   role: Role.USER,
+  status: UserStatus.ACTIVE,
 };
 
 const chatId = '22222222-2222-4222-8222-222222222222';
@@ -47,6 +49,21 @@ function createJwtServiceMock(): JwtService {
     verifyAsync: vi.fn(),
   } as unknown as JwtService;
 }
+
+function createPrismaMock(): PrismaService {
+  return {
+    user: {
+      findUnique: vi.fn(),
+    },
+  } as unknown as PrismaService;
+}
+
+type ChatsGatewayConstructor = new (
+  chatsService: ChatsService,
+  jwtService: JwtService,
+  configService: ConfigService<AppConfig, true>,
+  prisma: PrismaService,
+) => ChatsGateway;
 
 function createConfigServiceMock(): ConfigService<AppConfig, true> {
   return {
@@ -88,16 +105,19 @@ function createSocket(authenticated = true): {
 describe('ChatsGateway', () => {
   let chatsService: ChatsService;
   let jwtService: JwtService;
+  let prisma: PrismaService;
   let gateway: ChatsGateway;
 
   beforeEach(() => {
     vi.clearAllMocks();
     chatsService = createChatsServiceMock();
     jwtService = createJwtServiceMock();
-    gateway = new ChatsGateway(
+    prisma = createPrismaMock();
+    gateway = new (ChatsGateway as unknown as ChatsGatewayConstructor)(
       chatsService,
       jwtService,
       createConfigServiceMock(),
+      prisma,
     );
   });
 
@@ -109,6 +129,7 @@ describe('ChatsGateway', () => {
       email: user.email,
       role: user.role,
     });
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(user);
 
     await gateway.handleConnection(socket);
 
@@ -116,6 +137,25 @@ describe('ChatsGateway', () => {
       secret: 'access-secret',
     });
     expect(socket.data.user).toEqual(user);
+  });
+
+  it('disconnects a socket connection when the DB user is suspended', async () => {
+    const { socket, disconnect } = createSocket(false);
+    socket.handshake.auth.token = 'access-token';
+    vi.mocked(jwtService.verifyAsync).mockResolvedValue({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...user,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await gateway.handleConnection(socket);
+
+    expect(disconnect).toHaveBeenCalledWith(true);
+    expect(socket.data.user).toBeUndefined();
   });
 
   it('disconnects unauthenticated socket connections', async () => {
