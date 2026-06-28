@@ -86,6 +86,7 @@ model Product {
   @@index([category])
   @@index([price])
   @@index([createdAt])
+  @@index([sellerId])
 }
 
 model ProductImage {
@@ -252,15 +253,18 @@ model Report {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  type      String
-  message   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  message    String
+  targetType String?
+  targetId   String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   @@index([userId, isRead])
+  @@index([targetType, targetId])
 }
 
 model AdminLog {

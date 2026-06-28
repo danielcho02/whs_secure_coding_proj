@@ -22,12 +22,13 @@
 - Transactions: 거래 요청/예약/취소/완료/목록/후기 API, 서버 기준 amount, 당사자 검증, 중복 진행 거래 및 중복 후기 방지.
 - Payments: Toss Payments sandbox/test 기반 안전결제 생성, Toss 승인 confirm adapter, 웹훅 서명 검증, 에스크로 구매 확정, 환불, 영수증 조회 API.
 - Reports/Blocks/Admin: 사용자/상품 신고, 사용자 차단, 관리자 신고 처리, 상품 hide/restore, 사용자 suspend/restore, 관리자 로그 조회 API.
+- Notifications: 프론트 전 백엔드 최종 감사에서 누락된 알림 목록/읽음 API를 발견하고, 본인 알림 조회와 BOLA 방어를 추가했다.
 - Dev seed: 정상 기능 확인용 seller/buyer/admin, 상품/채팅/거래/후기 더미 데이터.
 
 ## 테스트
 
 - Vitest mock 기반 unit/controller/DTO 테스트를 도메인별로 작성했다.
-- 최근 전체 backend 테스트 결과는 30 files / 216 tests 통과.
+- 최근 전체 backend 테스트 결과는 33 files / 231 tests 통과.
 - Backend `npm install`, Prisma validate, lint, test, build를 실행해 정적 검증을 수행했다.
 - Docker/DB 기반 start 검증은 DB 미기동 상태에서 Prisma P1001을 확인한 뒤 `docker compose up -d`로 Postgres/Redis를 시작하고 `timeout 8s npm run start`에서 Nest application successfully started를 확인했다.
 
@@ -44,7 +45,9 @@
 - Webhook은 공개 endpoint지만 HMAC 서명 검증과 DB 대조를 통과해야 상태를 반영한다.
 - 구매 확정 전에는 `escrowReleased=false`로 정산을 보류하고, 구매자 확정 이후에만 `true`로 바꾼다.
 - 신고 생성은 `reporterId/status/adminId`를 body에서 받지 않고 서버가 결정한다. 중복 신고는 `Report @@unique([reporterId, type, targetId])`와 서비스 검사로 409 처리하며, 정지된 사용자의 신고 생성은 403으로 차단한다.
+- `CHAT` 신고는 `ChatMessage.id`를 대상으로 하며, 채팅 참여자만 상대 메시지를 신고할 수 있다.
 - 차단 관계는 `createChat`, `sendMessage`, `createTransaction`에 연결되어 양방향 Block이 있으면 403을 반환한다.
+- 알림 API는 `userId`를 body/query에서 받지 않고 `notification.userId === currentUser.id` 조건으로만 목록/읽음 처리를 수행한다. 타인 알림 id는 404로 처리한다.
 - 관리자 API는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하고 모든 관리자 조치를 `AdminLog`에 남긴다. 관리자 API는 ADMIN role뿐 아니라 `User.status=ACTIVE`도 요구한다.
 - 관리자 상품 restore는 기본 `HIDDEN -> ON_SALE`이지만, 활성/완료 거래가 있는 상품은 재판매 방지를 위해 409로 거부한다.
 - 정지 사용자는 로그인/refresh와 기존 accessToken 기반 HTTP API, WebSocket 연결에서 차단된다.

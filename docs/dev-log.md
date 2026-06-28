@@ -1,5 +1,46 @@
 # 개발 로그
 
+## 2026-06-28 / branch: feat/notifications-api
+
+### Notifications API 및 프론트 전 백엔드 보완
+
+- 구현 기능:
+  - `GET /api/notifications`: 인증 사용자 본인 알림만 pagination 조회, `unreadOnly=true` 필터 지원.
+  - `POST /api/notifications/:id/read`: 본인 알림만 읽음 처리, 타인/없는 알림 id는 404, 이미 읽은 알림은 idempotent 반환.
+  - 알림 응답은 `id`, `type`, `title`, `message/body`, `isRead`, `createdAt`, `target`만 반환한다.
+  - `GET /api/users/:id`에 `ParseUUIDPipe`를 적용해 비UUID 요청을 400으로 처리한다.
+  - `ReportType.CHAT` 신고를 구현했다. `targetId`는 `ChatMessage.id`이며 채팅 참여자만 상대 메시지를 신고할 수 있다.
+  - 관리자 신고 상세의 CHAT target summary에 메시지/발신자/채팅/상품 요약을 추가했다.
+  - 채팅 메시지 알림 생성 시 `targetType=CHAT`, `targetId=chat.id`를 저장한다.
+- DB 변경:
+  - `Notification.targetType`, `Notification.targetId`, `@@index([targetType, targetId])` 추가.
+  - `Product @@index([sellerId])` 추가.
+  - migration `20260628110000_add_notifications_targets_and_product_seller_index` 추가.
+- 문서:
+  - `README.md`, `docs/api-spec.md`, `docs/test-checklist.md`, `docs/report-notes.md`, `docs/security-review-log.md`, `docs/database-design.md` 갱신.
+- 테스트:
+  - RED 확인: 신규 notification 파일 미존재, CHAT report 거부, public profile UUID pipe 부재로 targeted test 실패 확인.
+  - GREEN 확인: targeted test 통과. 6 files / 29 tests.
+  - 전체 테스트: `npm run test` 통과. 33 files / 231 tests.
+- 검증 결과:
+  - `npm install`: 통과, 취약 패키지 0건.
+  - `npx prisma validate`: 통과. Prisma 7 예정 deprecation warning(`package.json#prisma`)만 표시.
+  - `npm run lint`: 통과.
+  - `npm run test`: 통과. 33 files / 231 tests.
+  - `npm run build`: 통과.
+  - `timeout 8s npm run start`: Nest application successfully started 확인, `/api/notifications`와 `/api/notifications/:id/read` route 매핑 확인 후 timeout 종료.
+  - `docker compose config`: 통과.
+  - `docker compose up -d`: 통과. Postgres/Redis running 및 healthy.
+  - `npx prisma migrate status`: 신규 migration pending 확인.
+  - `npx prisma migrate deploy`: 신규 migration 적용 통과.
+  - `npx prisma migrate status`: 최종 database schema up to date.
+  - `npm run db:seed`: 통과.
+  - `rg '\$queryRawUnsafe|\$queryRaw' backend/src`: production 코드 사용 없음. spec mock과 미호출 검증만 확인.
+  - `rg 'passwordHash|refreshToken|TOSS_SECRET|SECRET_KEY' backend/src/modules backend/src/common`: auth password/refresh 처리와 민감정보 미노출 테스트만 확인, Toss secret/key 하드코딩 없음.
+  - `git diff --check`: 통과.
+- 커밋:
+  - TDD RED 테스트 checkpoint, GREEN 구현 checkpoint, 문서/검증 기록 checkpoint를 생성했다.
+
 ## 2026-06-28 / branch: fix/session-status-guard
 
 ### 정지 사용자 기존 accessToken 재사용 보안 패치

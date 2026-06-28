@@ -42,7 +42,7 @@ POST /api/auth/login
 | PATCH | `/me` | 프로필 수정 | 🔒 본인만 |
 | GET | `/:id/private` | 연락처 등 민감정보 | 🔒 본인/관리자만 (SR-30) |
 
-> 🔒 `GET /:id`는 email·phone 미포함, 공개 필드만(SR-29, SR-39).
+> 🔒 `GET /:id`는 UUID id만 허용하며, email·phone 미포함, 공개 필드만 반환한다(SR-29, SR-39).
 
 ---
 
@@ -188,14 +188,19 @@ GET /api/payments/:id/receipt
 
 | Method | Path | 설명 | 권한 |
 |--------|------|------|------|
-| POST | `/` | 사용자/상품 신고(targetType, targetId, reason, description) | 인증 |
+| POST | `/` | 사용자/상품/채팅 메시지 신고(targetType, targetId, reason, description) | 인증 |
 | GET | `/me` | 내 신고 내역 | 🔒 본인 |
 
 ```http
 POST /api/reports
 { "targetType":"PRODUCT", "targetId":"uuid", "reason":"사기 의심", "description":"외부 결제 유도" }
 ```
-> 🔒 `targetType`은 v1에서 `USER|PRODUCT`만 허용한다. `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 DTO whitelist로 400 처리한다.
+```http
+POST /api/reports
+{ "targetType":"CHAT", "targetId":"chatMessageUuid", "reason":"욕설 메시지" }
+```
+> 🔒 `targetType`은 `USER|PRODUCT|CHAT`을 허용한다. `CHAT`의 `targetId`는 `ChatMessage.id`이며 채팅 참여자만 상대 메시지를 신고할 수 있다.
+> 🔒 `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 DTO whitelist로 400 처리한다.
 > 🔒 자기 자신 신고와 자기 상품 신고는 400, 존재하지 않는 대상은 404, 같은 reporter/target 중복 신고는 409.
 
 ## 8. Blocks `/api/blocks`
@@ -241,7 +246,31 @@ POST /api/reports
 | GET | `/` | 내 알림 | 🔒 본인만 |
 | POST | `/:id/read` | 읽음 | 🔒 본인만 |
 
-> 🔒 알림 조회는 `notification.userId == me`(SR-39). 타인 알림 조회 차단.
+```http
+GET /api/notifications?page=1&limit=20&unreadOnly=true
+→ 200 { "success": true, "data": {
+  "items": [{
+    "id": "uuid",
+    "type": "CHAT",
+    "title": "채팅 알림",
+    "message": "새 채팅 메시지가 도착했습니다.",
+    "body": "새 채팅 메시지가 도착했습니다.",
+    "isRead": false,
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "target": { "type": "CHAT", "id": "chatUuid" }
+  }],
+  "page": 1,
+  "limit": 20,
+  "total": 1
+} }
+```
+```http
+POST /api/notifications/:id/read
+{}
+```
+> 🔒 알림 조회/수정은 `notification.userId == me`(SR-39). `userId`는 body/query에서 받지 않는다.
+> 🔒 `limit<=100`. 타인 알림 또는 없는 알림 읽음 요청은 404로 통일해 id 존재 여부를 노출하지 않는다.
+> 🔒 이미 읽은 알림은 idempotent하게 현재 상태를 반환한다.
 
 ---
 

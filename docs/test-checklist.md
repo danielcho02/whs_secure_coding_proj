@@ -43,7 +43,9 @@
 ## Reports / Blocks / Admin Moderation
 
 - Reports DTO: `reporterId`, `status`, `adminId`, `role` 주입 400.
+- Reports DTO: `targetType=CHAT` 허용.
 - Reports Service: USER/PRODUCT 신고 생성 성공, 존재하지 않는 대상 404, 자기 자신 신고 400, 자기 상품 신고 400, 중복 신고 409.
+- Reports Service: CHAT 신고는 `ChatMessage.id` 기준, 참여자만 상대 메시지를 신고할 수 있고 비참여자/자기 메시지는 거부.
 - Reports Service: DB `User.status=SUSPENDED` 사용자의 신고 생성 403.
 - Reports Service: 내 신고 목록은 current user의 신고만 반환.
 - Blocks DTO: `blockerId`, `status`, `role` 주입 400.
@@ -58,16 +60,26 @@
 - Admin Logs: pagination 조회 성공, actor/action/targetType/targetId/reason/createdAt 반환, 민감정보 제외.
 - Static: 신규 모듈 및 연결 제한에서 `$queryRawUnsafe` 사용 없음.
 
+## Notifications
+
+- DTO validation: `page`, `limit`, `unreadOnly`만 허용하고 `userId` 주입 400.
+- Controller: `GET /notifications`, `POST /notifications/:id/read` 모두 `JwtAuthGuard` 적용, `:id`는 UUID 검증.
+- Service: 목록은 current user의 알림만 반환하고 `unreadOnly=true`면 `isRead=false` 조건 추가.
+- Service: 읽음 처리는 `notification.userId === currentUser.id` 조건으로만 수행.
+- Service: 타인 알림 read는 404, 이미 읽은 알림 read 재요청은 idempotent.
+- Static: Notifications 모듈에서 `$queryRawUnsafe` 사용 없음.
+
 ## 최근 실행 결과
 
 - Backend install: `npm install` 통과. 취약 패키지 0건.
-- Backend test: `npm run test` 통과. 30 files / 216 tests.
 - Backend lint: `npm run lint` 통과.
+- Backend test: `npm run test` 통과. 33 files / 231 tests.
 - Backend build: `npm run build` 통과.
 - Frontend build: 미실행. 이번 작업에서 frontend 파일은 변경하지 않았다.
 - Prisma validate: `npx prisma validate` 통과.
-- Backend start: 최초 `timeout 8s npm run start`는 DB 미기동으로 Prisma P1001 실패. `docker compose up -d` 후 재실행하여 Nest application successfully started 확인, timeout으로 종료.
-- Static search: `rg '\$queryRawUnsafe' backend/src`에서 production 코드 사용 없음. spec mock과 미호출 검증만 확인.
+- Backend start: `timeout 8s npm run start`에서 Nest application successfully started 및 Notifications route 매핑 확인, timeout으로 종료.
+- Docker/DB: `docker compose config`, `docker compose up -d`, `npx prisma migrate deploy`, `npx prisma migrate status`, `npm run db:seed` 통과.
+- Static search: `rg '\$queryRawUnsafe|\$queryRaw' backend/src`에서 production 코드 사용 없음. spec mock과 미호출 검증만 확인.
 - Static search: `rg 'passwordHash|refreshToken|TOSS_SECRET|SECRET_KEY' backend/src/modules backend/src/common`에서 auth password/refresh 처리와 민감정보 미노출 테스트만 확인, Toss secret/key 하드코딩 없음.
 
 ## 미실행/환경 제약

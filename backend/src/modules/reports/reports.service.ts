@@ -32,6 +32,22 @@ type ReportRecord = Prisma.ReportGetPayload<{
   select: typeof REPORT_RESPONSE_SELECT;
 }>;
 
+const CHAT_MESSAGE_REPORT_SELECT = {
+  id: true,
+  senderId: true,
+  chat: {
+    select: {
+      id: true,
+      buyerId: true,
+      sellerId: true,
+    },
+  },
+} satisfies Prisma.ChatMessageSelect;
+
+type ChatMessageReportTarget = Prisma.ChatMessageGetPayload<{
+  select: typeof CHAT_MESSAGE_REPORT_SELECT;
+}>;
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -166,7 +182,44 @@ export class ReportsService {
       return;
     }
 
+    if (dto.targetType === ReportType.CHAT) {
+      await this.assertChatMessageReportTargetAllowed(reporterId, dto.targetId);
+      return;
+    }
+
     throw new BadRequestException('Unsupported report target type');
+  }
+
+  private async assertChatMessageReportTargetAllowed(
+    reporterId: string,
+    messageId: string,
+  ): Promise<void> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: CHAT_MESSAGE_REPORT_SELECT,
+    });
+
+    if (!message) {
+      throw new NotFoundException('Chat message not found');
+    }
+
+    this.assertCanReportChatMessage(reporterId, message);
+  }
+
+  private assertCanReportChatMessage(
+    reporterId: string,
+    message: ChatMessageReportTarget,
+  ): void {
+    if (
+      message.chat.buyerId !== reporterId &&
+      message.chat.sellerId !== reporterId
+    ) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    if (message.senderId === reporterId) {
+      throw new BadRequestException('Cannot report your own message');
+    }
   }
 
   private toReportResponse(report: ReportRecord): ReportResponse {

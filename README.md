@@ -44,7 +44,7 @@ Base URL: `/api`
 - `POST /api/auth/logout`: refresh 세션 무효화 및 cookie 삭제
 - `GET /api/users/me`: 내 프로필 조회, Bearer access token 필요
 - `PATCH /api/users/me`: nickname, bio, avatarUrl만 수정
-- `GET /api/users/:id`: 공개 프로필 조회
+- `GET /api/users/:id`: 공개 프로필 조회, `id`는 UUID만 허용
 - `GET /api/users/:id/private`: 본인 또는 ADMIN만 private 프로필 조회
 
 ## Products API
@@ -145,7 +145,7 @@ Payments 보안 정책:
 
 Base URL: `/api`
 
-- `POST /api/reports`: 인증 필요. `targetType=USER|PRODUCT`, `targetId`, `reason`, `description`만 허용
+- `POST /api/reports`: 인증 필요. `targetType=USER|PRODUCT|CHAT`, `targetId`, `reason`, `description`만 허용
 - `GET /api/reports/me`: 인증 필요. 내 신고 목록만 페이지네이션 조회
 - `POST /api/blocks`: 인증 필요. `blockedUserId`만 허용하며 중복 차단은 기존 Block 반환
 - `DELETE /api/blocks/:blockedUserId`: 인증 필요. current user의 차단 관계만 해제
@@ -156,6 +156,7 @@ Reports/Blocks 보안 정책:
 - `reporterId`, `blockerId`, `status`, `adminId`, `role` 같은 권한/상태 필드는 클라이언트에서 받지 않는다.
 - 정지된 사용자는 신고 생성이 403으로 제한된다.
 - 자기 자신 신고/차단과 자기 상품 신고는 400으로 거부한다.
+- `CHAT` 신고의 `targetId`는 `ChatMessage.id`이며, 채팅 참여자만 상대 메시지를 신고할 수 있다.
 - 존재하지 않는 대상은 404, 같은 사용자의 같은 대상 중복 신고는 409로 거부한다.
 - 신고/차단 목록은 `limit<=100`으로 제한하고 Prisma ORM만 사용한다.
 
@@ -182,18 +183,32 @@ Admin 보안 정책:
 - 모든 관리자 상태 변경은 `AdminLog`에 기록한다. 로그 수정/삭제 API는 없다.
 - 관리자 목록/로그 응답은 `passwordHash`, refresh token, Toss secret/key, token, phone/email을 반환하지 않는다.
 
+## Notifications API
+
+Base URL: `/api/notifications`
+
+- `GET /api/notifications`: 인증 필요. 내 알림만 페이지네이션 조회, `unreadOnly=true` 지원
+- `POST /api/notifications/:id/read`: 인증 필요. 내 알림만 읽음 처리, 이미 읽은 알림은 현재 상태 반환
+
+Notifications 보안 정책:
+
+- `userId`는 body/query에서 받지 않고 access token subject만 사용한다.
+- 알림 조회와 읽음 처리는 항상 `notification.userId === currentUser.id` 조건으로 수행한다.
+- 타인 알림 id 또는 없는 알림 id의 읽음 요청은 404로 통일한다.
+- 응답은 `id`, `type`, `title`, `message/body`, `isRead`, `createdAt`, `target`만 포함하며 민감정보를 반환하지 않는다.
+
 ## Dev Seed
 
 개발 환경에서 정상 거래/채팅 흐름을 확인하기 위한 더미 데이터만 제공한다. 취약점 시연용 데이터나 권한 우회용 계정은 포함하지 않는다.
 
-Transactions 구현에서 `Review` 모델에 `@@unique([transactionId, authorId])`가 추가되어 migration이 필요하다. 현재 migration은 `backend/prisma/migrations/20260628020031_add_review_author_unique/migration.sql`에 생성되어 있으며, `Review_transactionId_authorId_key` unique index를 포함한다.
+Transactions 구현에서 `Review` 모델에 `@@unique([transactionId, authorId])`가 추가되었고, Notifications API 보완에서 `Notification.targetType/targetId`와 `Product.sellerId` index migration이 추가되었다.
 
 ```bash
 cd backend
-npx prisma migrate dev --name add-review-author-unique
+npx prisma migrate deploy
 ```
 
-검증 결과 `docker compose up -d`로 PostgreSQL/Redis를 실행한 뒤 `npx prisma migrate dev --name add-review-author-unique`를 실행했으며, Prisma는 `Already in sync`와 `Database schema is up to date` 상태를 보고했다. DB의 `_prisma_migrations`에는 `20260628020031_add_review_author_unique`가 완료 상태로 기록되어 있다.
+검증 결과 `docker compose up -d`로 PostgreSQL/Redis를 실행한 뒤 `npx prisma migrate deploy`로 `20260628110000_add_notifications_targets_and_product_seller_index`까지 적용했으며, 최종 `npx prisma migrate status`는 `Database schema is up to date` 상태를 보고했다.
 
 ```bash
 cd backend
@@ -208,7 +223,7 @@ Docker/DB 검증 결과:
 
 - `docker compose config`: 통과
 - `docker compose up -d`: 통과, `whs-market-postgres`와 `whs-market-redis` healthy
-- `npx prisma migrate dev --name add-review-author-unique`: 통과, schema up to date
+- `npx prisma migrate deploy`: 통과, schema up to date
 - `npm run db:seed`: 통과
 - `npm run start`: Nest application successfully started 확인. 서버 프로세스를 남기지 않기 위해 검증 시 timeout으로 종료
 

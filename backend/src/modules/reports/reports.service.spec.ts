@@ -19,6 +19,9 @@ import { ReportsService } from './reports.service';
 
 function createPrismaMock(): PrismaService {
   return {
+    chatMessage: {
+      findUnique: vi.fn(),
+    },
     product: {
       findUnique: vi.fn(),
     },
@@ -38,6 +41,8 @@ function createPrismaMock(): PrismaService {
 const reporterId = '22222222-2222-4222-8222-222222222222';
 const sellerId = '33333333-3333-4333-8333-333333333333';
 const productId = '11111111-1111-4111-8111-111111111111';
+const chatId = '55555555-5555-4555-8555-555555555555';
+const messageId = '66666666-6666-4666-8666-666666666666';
 const reportRecord = {
   id: '44444444-4444-4444-8444-444444444444',
   reporterId,
@@ -50,6 +55,11 @@ const reportRecord = {
   adminNote: null,
   reviewedAt: null,
   createdAt: new Date('2026-06-28T00:00:00.000Z'),
+};
+const chatReportRecord = {
+  ...reportRecord,
+  type: ReportType.CHAT,
+  targetId: messageId,
 };
 const reporterRecord = {
   id: reporterId,
@@ -146,6 +156,92 @@ describe('ReportsService', () => {
         reason: '셀프 상품 신고',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('creates a pending chat message report for a participant', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
+    vi.mocked(prisma.chatMessage.findUnique).mockResolvedValue({
+      id: messageId,
+      senderId: sellerId,
+      chat: {
+        id: chatId,
+        buyerId: reporterId,
+        sellerId,
+      },
+    });
+    vi.mocked(prisma.report.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.report.create).mockResolvedValue(chatReportRecord);
+
+    const result = await service.createReport(reporterId, {
+      targetType: ReportType.CHAT,
+      targetId: messageId,
+      reason: '욕설 메시지',
+    });
+
+    expect(prisma.chatMessage.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: messageId },
+      }),
+    );
+    expect(prisma.report.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          reporterId,
+          type: ReportType.CHAT,
+          targetId: messageId,
+          reason: '욕설 메시지',
+          description: undefined,
+          status: ReportStatus.PENDING,
+        },
+      }),
+    );
+    expect(result.targetType).toBe(ReportType.CHAT);
+  });
+
+  it('rejects chat message reports from non participants', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
+    vi.mocked(prisma.chatMessage.findUnique).mockResolvedValue({
+      id: messageId,
+      senderId: sellerId,
+      chat: {
+        id: chatId,
+        buyerId: '77777777-7777-4777-8777-777777777777',
+        sellerId,
+      },
+    });
+
+    await expect(
+      service.createReport(reporterId, {
+        targetType: ReportType.CHAT,
+        targetId: messageId,
+        reason: '참여하지 않은 채팅 신고',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.report.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects reporting your own chat message', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
+    vi.mocked(prisma.chatMessage.findUnique).mockResolvedValue({
+      id: messageId,
+      senderId: reporterId,
+      chat: {
+        id: chatId,
+        buyerId: reporterId,
+        sellerId,
+      },
+    });
+
+    await expect(
+      service.createReport(reporterId, {
+        targetType: ReportType.CHAT,
+        targetId: messageId,
+        reason: '셀프 메시지 신고',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.report.create).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate reports for the same reporter and target', async () => {

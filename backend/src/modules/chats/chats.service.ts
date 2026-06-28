@@ -450,6 +450,8 @@ export class ChatsService {
         userId: recipientId,
         type: 'CHAT',
         message: '새 채팅 메시지가 도착했습니다.',
+        targetType: 'CHAT',
+        targetId: chat.id,
       },
       select: { id: true },
     });
