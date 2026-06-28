@@ -188,27 +188,53 @@ GET /api/payments/:id/receipt
 
 | Method | Path | 설명 | 권한 |
 |--------|------|------|------|
-| POST | `/` | 신고(type, targetId, reason) | 인증 |
-| GET | `/mine` | 내 신고 내역 | 🔒 본인 |
+| POST | `/` | 사용자/상품 신고(targetType, targetId, reason, description) | 인증 |
+| GET | `/me` | 내 신고 내역 | 🔒 본인 |
+
+```http
+POST /api/reports
+{ "targetType":"PRODUCT", "targetId":"uuid", "reason":"사기 의심", "description":"외부 결제 유도" }
+```
+> 🔒 `targetType`은 v1에서 `USER|PRODUCT`만 허용한다. `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 DTO whitelist로 400 처리한다.
+> 🔒 자기 자신 신고와 자기 상품 신고는 400, 존재하지 않는 대상은 404, 같은 reporter/target 중복 신고는 409.
+
+## 8. Blocks `/api/blocks`
+
+| Method | Path | 설명 | 권한 |
+|--------|------|------|------|
+| POST | `/` | 사용자 차단(blockedUserId) | 인증 |
+| DELETE | `/:blockedUserId` | 사용자 차단 해제 | 🔒 본인 차단 관계 |
+| GET | `/` | 내 차단 목록 | 🔒 본인 |
+
+> 🔒 `blockerId`는 access token subject에서만 결정한다. 자기 자신 차단은 400. 중복 차단은 기존 Block을 반환한다.
+> 🔒 Block 관계가 양방향 중 하나라도 있으면 `createChat`, `sendMessage`, `createTransaction`은 403.
 
 ---
 
-## 8. Admin `/api/admin`  (🔒 전부 RolesGuard: ADMIN)
+## 9. Admin `/api/admin`  (🔒 전부 JwtAuthGuard + RolesGuard: ADMIN)
 
 | Method | Path | 설명 |
 |--------|------|------|
-| GET | `/reports` | 신고 목록(신고자 PII 비노출) |
-| PATCH | `/reports/:id` | 신고 상태 처리 |
+| GET | `/reports` | 신고 목록(status, targetType, page, limit) |
+| GET | `/reports/:id` | 신고 상세 |
+| PATCH | `/reports/:id/status` | 신고 상태 처리(status, adminNote) |
+| GET | `/products` | 관리자 상품 목록(status, isHidden, sellerId, q) |
 | PATCH | `/products/:id/hide` | 상품 숨김 |
-| PATCH | `/users/:id/sanction` | 제재(경고/정지/영구정지) |
+| PATCH | `/products/:id/restore` | 상품 복구 |
+| GET | `/users` | 관리자 사용자 목록(status, role, q) |
+| PATCH | `/users/:id/suspend` | 사용자 정지 |
+| PATCH | `/users/:id/restore` | 사용자 복구 |
 | GET | `/logs` | 관리자 조치 로그 |
 
 > 🔒 `/admin/*`는 토큰의 `role==ADMIN`을 서버에서 검사(SR-09, SR-36). URL 직접 접근·`role=ADMIN` 파라미터 주입 모두 차단(SR-15). 모든 조치는 `admin_logs` 기록(SR-28).
-> 🔒 관리자 상태 변경 요청은 CSRF 토큰/SameSite로 보호.
+> 🔒 일반 사용자는 403. 관리자 목록 응답은 passwordHash, refresh token, Toss secret/key, token, phone/email을 반환하지 않는다.
+> 🔒 상품 hide는 `Product.isHidden=true`, `status=HIDDEN`. restore는 기본적으로 `HIDDEN -> ON_SALE`이지만 `RESERVED|PAYMENT_PENDING|PAID|SHIPPING|COMPLETED` 거래가 있으면 재판매 방지를 위해 409.
+> 🔒 사용자 suspend는 `User.status=SUSPENDED`, restore는 `ACTIVE`. 자기 자신 정지와 마지막 ACTIVE 관리자 정지는 거부한다.
+> 🔒 `GET /admin/logs`는 pagination만 제공하며 로그 수정/삭제 API는 만들지 않는다.
 
 ---
 
-## 9. Notifications `/api/notifications`
+## 10. Notifications `/api/notifications`
 
 | Method | Path | 설명 | 권한 |
 |--------|------|------|------|
@@ -219,10 +245,11 @@ GET /api/payments/:id/receipt
 
 ---
 
-## 10. 공통 보안 정책
+## 11. 공통 보안 정책
 
 - **CORS**: `CORS_ORIGIN`만 허용, credentials true(SR-38)
 - **Rate Limit**: 로그인·결제·채팅 송신 엄격 적용(SR-37)
 - **Validation**: 전역 `ValidationPipe({ whitelist:true, forbidNonWhitelisted:true })`
 - **응답 필터**: 직렬화 시 `@Exclude()`로 passwordHash·내부 필드 제거(SR-39)
 - **에러**: 전역 필터로 스택/쿼리 미노출(NFR-07)
+- **정지 사용자**: 로그인/refresh와 Products, Chats, Transactions, Payments의 신규 변경 행위는 403/401로 제한한다. 본인 데이터 확인용 읽기 API는 허용한다.

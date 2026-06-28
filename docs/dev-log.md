@@ -1,5 +1,43 @@
 # 개발 로그
 
+## 2026-06-28 / branch: feat/reports-admin-moderation
+
+### Reports / Blocks / Admin Moderation 구현
+
+- 구현 기능:
+  - `POST /api/reports`, `GET /api/reports/me`: USER/PRODUCT 신고, 중복 신고 409, 자기 자신/자기 상품 신고 400, 내 신고 목록 조회.
+  - `POST /api/blocks`, `DELETE /api/blocks/:blockedUserId`, `GET /api/blocks`: 사용자 차단/해제/목록, 중복 차단 idempotent 반환.
+  - `GET/PATCH /api/admin/reports`: 관리자 신고 목록/상세/상태 처리, 처리 시 AdminLog 기록.
+  - `GET/PATCH /api/admin/products`: 관리자 상품 목록, hide/restore, 조치 시 AdminLog 기록.
+  - `GET/PATCH /api/admin/users`: 관리자 사용자 목록, suspend/restore, 자기 자신 정지 및 마지막 ACTIVE 관리자 정지 방지.
+  - `GET /api/admin/logs`: append-only 관리자 로그 pagination 조회.
+- 보안 연결:
+  - 모든 `/api/admin/*`에 `JwtAuthGuard + RolesGuard + @Roles(Role.ADMIN)` 적용.
+  - `createChat`, `sendMessage`, `createTransaction`에서 양방향 Block 관계 확인 후 403.
+  - 정지 사용자의 Products/Chats/Transactions/Payments 신규 변경 행위 403 제한. 읽기 API는 본인 데이터 확인 목적상 허용.
+  - 관리자 상품 restore 시 `RESERVED/PAYMENT_PENDING/PAID/SHIPPING/COMPLETED` 거래가 있으면 재판매 방지를 위해 409.
+- DB 변경:
+  - `Report.description`, `adminId`, `adminNote`, `reviewedAt`, `@@unique([reporterId, type, targetId])` 추가.
+  - `AdminLog.targetType`, `reason` 및 조회용 index 추가.
+  - migration `20260628090000_add_reports_admin_moderation` 추가.
+- 테스트:
+  - RED 확인: 신규 모듈/DTO 미존재 및 차단/정지 제한 부재로 `npm run test` 실패 확인.
+  - GREEN 확인: `npm run test` 통과. 29 files / 209 tests.
+- 검증 결과:
+  - `npm install`: 통과, 취약 패키지 0건.
+  - `npx prisma validate`: 통과.
+  - `npm run lint`: 통과.
+  - `npm run test`: 통과. 29 files / 209 tests.
+  - `npm run build`: 통과.
+  - `timeout 8s npm run start`: Nest application successfully started 및 Reports/Blocks/Admin routes 매핑 확인 후 timeout 종료.
+  - `docker compose config`: 통과.
+  - `docker compose up -d`: 통과. Postgres/Redis running.
+  - `npx prisma migrate status`: 최초 pending 확인, `npx prisma migrate deploy` 적용 후 최종 schema up to date.
+  - `npm run db:seed`: 통과.
+  - `git diff --check`: 통과.
+- 미실행:
+  - frontend 파일 변경이 없어 `cd frontend && npm run build`는 실행하지 않았다.
+
 ## 2026-06-28 / branch: feat/payments-secure-escrow
 
 ### Payments / 안전거래 구현

@@ -7,7 +7,12 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PaymentStatus, ProductStatus, TxStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  ProductStatus,
+  TxStatus,
+  UserStatus,
+} from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProvider } from './providers/payment-provider.interface';
@@ -33,6 +38,7 @@ function createPrismaMock(): PrismaService {
       updateMany: vi.fn(),
     },
     user: {
+      findUnique: vi.fn(),
       updateMany: vi.fn(),
     },
     auditLog: {
@@ -122,19 +128,18 @@ describe('PaymentsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createPrismaMock();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.ACTIVE,
+    });
     provider = createProviderMock();
     verifier = new TossWebhookVerifier('webhook-secret');
-    service = new PaymentsService(
-      prisma,
-      provider,
-      verifier,
-      {
-        tossClientKey: 'test_ck',
-        successUrl: 'http://localhost:5173/payments/success',
-        failUrl: 'http://localhost:5173/payments/fail',
-        cancelUrl: 'http://localhost:5173/payments/cancel',
-      },
-    );
+    service = new PaymentsService(prisma, provider, verifier, {
+      tossClientKey: 'test_ck',
+      successUrl: 'http://localhost:5173/payments/success',
+      failUrl: 'http://localhost:5173/payments/fail',
+      cancelUrl: 'http://localhost:5173/payments/cancel',
+    });
   });
 
   it('creates a pending payment for the transaction buyer using the server amount', async () => {
@@ -194,6 +199,21 @@ describe('PaymentsService', () => {
     expect(prisma.payment.create).not.toHaveBeenCalled();
   });
 
+  it('rejects payment creation by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createPayment(buyer.id, {
+        transactionId: transaction.id,
+        idempotencyKey: payment.idempotencyKey,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
   it('reuses the existing payment for the same idempotency key', async () => {
     vi.mocked(prisma.transaction.findUnique).mockResolvedValue({
       ...transaction,
@@ -233,6 +253,22 @@ describe('PaymentsService', () => {
         amount: 100,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(provider.confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects Toss approval by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.approvePayment(buyer.id, payment.id, {
+        paymentKey: 'tgen_20260628123456',
+        orderId: payment.orderId,
+        amount: payment.amount,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(provider.confirmPayment).not.toHaveBeenCalled();
   });
 
@@ -277,7 +313,12 @@ describe('PaymentsService', () => {
     expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
       where: {
         id: transaction.id,
-        status: { in: expect.arrayContaining([TxStatus.PAYMENT_PENDING, TxStatus.RESERVED]) },
+        status: {
+          in: expect.arrayContaining([
+            TxStatus.PAYMENT_PENDING,
+            TxStatus.RESERVED,
+          ]),
+        },
       },
       data: { status: TxStatus.PAID },
     });
@@ -349,6 +390,18 @@ describe('PaymentsService', () => {
     expect(result.escrowReleased).toBe(true);
   });
 
+  it('rejects purchase confirmation by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.confirmPurchase(buyer.id, payment.id),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+
   it('rejects normal refunds after escrow has been released', async () => {
     vi.mocked(prisma.payment.findUnique).mockResolvedValue({
       ...payment,
@@ -362,6 +415,18 @@ describe('PaymentsService', () => {
     expect(provider.cancelPayment).not.toHaveBeenCalled();
   });
 
+  it('rejects refund requests by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.refundPayment(buyer.id, payment.id, {}),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(provider.cancelPayment).not.toHaveBeenCalled();
+  });
+
   it('restricts receipt lookup to transaction participants and omits sensitive user fields', async () => {
     vi.mocked(prisma.payment.findUnique).mockResolvedValue(payment);
 
@@ -372,8 +437,8 @@ describe('PaymentsService', () => {
     expect('email' in receipt.buyer).toBe(false);
     expect('phone' in receipt.seller).toBe(false);
 
-    await expect(service.getReceipt('stranger', payment.id)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.getReceipt('stranger', payment.id),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus, TxStatus } from '@prisma/client';
+import { Prisma, ProductStatus, TxStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -135,12 +135,15 @@ export class TransactionsService {
     buyerId: string,
     dto: CreateTransactionDto,
   ): Promise<TransactionResponse> {
+    await this.assertActiveUser(buyerId);
+
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, isHidden: false },
       select: PRODUCT_FOR_TRANSACTION_SELECT,
     });
 
     this.assertProductRequestable(product, buyerId);
+    await this.assertNoBlockBetween(buyerId, product.sellerId);
 
     const existingActiveTransaction = await this.prisma.transaction.findFirst({
       where: {
@@ -173,6 +176,8 @@ export class TransactionsService {
     transactionId: string,
     sellerId: string,
   ): Promise<TransactionResponse> {
+    await this.assertActiveUser(sellerId);
+
     return this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id: transactionId },
@@ -232,6 +237,8 @@ export class TransactionsService {
     transactionId: string,
     userId: string,
   ): Promise<TransactionResponse> {
+    await this.assertActiveUser(userId);
+
     return this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id: transactionId },
@@ -282,6 +289,8 @@ export class TransactionsService {
     transactionId: string,
     sellerId: string,
   ): Promise<TransactionResponse> {
+    await this.assertActiveUser(sellerId);
+
     return this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id: transactionId },
@@ -396,6 +405,8 @@ export class TransactionsService {
     authorId: string,
     dto: CreateReviewDto,
   ): Promise<ReviewResponse> {
+    await this.assertActiveUser(authorId);
+
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
       select: TRANSACTION_STATE_SELECT,
@@ -481,9 +492,42 @@ export class TransactionsService {
     }
   }
 
-  private assertParticipant(transaction: TransactionState, userId: string): void {
+  private assertParticipant(
+    transaction: TransactionState,
+    userId: string,
+  ): void {
     if (transaction.buyerId !== userId && transaction.sellerId !== userId) {
       throw new ForbiddenException('Access denied');
+    }
+  }
+
+  private async assertActiveUser(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('User is not active');
+    }
+  }
+
+  private async assertNoBlockBetween(
+    userAId: string,
+    userBId: string,
+  ): Promise<void> {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userAId, blockedId: userBId },
+          { blockerId: userBId, blockedId: userAId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw new ForbiddenException('Blocked users cannot transact');
     }
   }
 

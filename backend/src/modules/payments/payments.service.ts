@@ -7,7 +7,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PaymentStatus, Prisma, ProductStatus, TxStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  ProductStatus,
+  TxStatus,
+  UserStatus,
+} from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { ApprovePaymentDto } from './dto/approve-payment.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -127,7 +133,10 @@ const PAYMENT_APPROVABLE_STATUSES = [
   TxStatus.PAYMENT_PENDING,
 ] as const;
 
-const PURCHASE_CONFIRMABLE_STATUSES = [TxStatus.PAID, TxStatus.SHIPPING] as const;
+const PURCHASE_CONFIRMABLE_STATUSES = [
+  TxStatus.PAID,
+  TxStatus.SHIPPING,
+] as const;
 
 type PaymentCoreRecord = Prisma.PaymentGetPayload<{
   select: typeof PAYMENT_CORE_SELECT;
@@ -175,6 +184,8 @@ export class PaymentsService {
     userId: string,
     dto: CreatePaymentDto,
   ): Promise<PaymentResponse> {
+    await this.assertActiveUser(userId);
+
     return this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id: dto.transactionId },
@@ -247,6 +258,8 @@ export class PaymentsService {
     paymentId: string,
     dto: ApprovePaymentDto,
   ): Promise<PaymentResponse> {
+    await this.assertActiveUser(userId);
+
     const payment = await this.findPaymentOrThrow(paymentId);
 
     this.assertBuyer(payment.transaction, userId);
@@ -350,6 +363,8 @@ export class PaymentsService {
     userId: string,
     paymentId: string,
   ): Promise<PaymentResponse> {
+    await this.assertActiveUser(userId);
+
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
@@ -435,12 +450,16 @@ export class PaymentsService {
     paymentId: string,
     dto: RefundPaymentDto,
   ): Promise<PaymentResponse> {
+    await this.assertActiveUser(userId);
+
     const payment = await this.findPaymentOrThrow(paymentId);
 
     this.assertParticipant(payment.transaction, userId);
 
     if (payment.escrowReleased) {
-      throw new BadRequestException('Released escrow cannot be normally refunded');
+      throw new BadRequestException(
+        'Released escrow cannot be normally refunded',
+      );
     }
 
     if (
@@ -496,6 +515,17 @@ export class PaymentsService {
     }
 
     return payment;
+  }
+
+  private async assertActiveUser(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('User is not active');
+    }
   }
 
   private async markPaymentPaid(
@@ -809,7 +839,9 @@ export class PaymentsService {
     };
   }
 
-  private toReceiptResponse(payment: PaymentRecordLike): PaymentReceiptResponse {
+  private toReceiptResponse(
+    payment: PaymentRecordLike,
+  ): PaymentReceiptResponse {
     return {
       id: payment.id,
       transactionId: payment.transactionId,

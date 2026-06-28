@@ -102,6 +102,20 @@ POST /auth/logout → Redis 화이트리스트에서 jti 제거 + 쿠키 삭제
 
 각 도메인은 독립 모듈로 분리하여 결합도를 낮추고, 향후 서비스 분리·확장이 가능하도록 한다.
 
+### 차단/정지 사용자 제한
+
+- `Block`은 사용자 간 상호작용 제한을 위한 서버 기준 관계다.
+- `createChat`, `sendMessage`, `createTransaction`은 buyer/seller 양방향 중 하나라도 Block이 있으면 403을 반환한다.
+- `User.status !== ACTIVE` 사용자는 로그인/refresh가 거부되고, Products/Chats/Transactions/Payments의 신규 변경 행위가 403으로 제한된다.
+- 읽기 API는 본인 데이터 확인 목적상 기존 소유자/참여자 검증을 통과하면 허용한다.
+
+### 관리자 조치 흐름
+
+- 모든 `/api/admin/*`는 `JwtAuthGuard → RolesGuard(@Roles(ADMIN))`를 통과해야 한다.
+- 신고 처리, 상품 hide/restore, 사용자 suspend/restore는 실제 DB 상태를 변경하고 `AdminLog`에 append-only로 기록한다.
+- 상품 restore는 기본적으로 `HIDDEN -> ON_SALE`이지만, 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 방지를 위해 거부한다.
+- 관리자 로그 조회는 pagination만 제공하며 수정/삭제 API를 만들지 않는다.
+
 ---
 
 ## 5. 거래 상태 머신

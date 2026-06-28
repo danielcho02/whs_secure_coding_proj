@@ -7,7 +7,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus, TxStatus } from '@prisma/client';
+import { Prisma, ProductStatus, TxStatus, UserStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionsService } from './transactions.service';
@@ -32,7 +32,11 @@ function createPrismaMock(): PrismaService {
       create: vi.fn(),
       findFirst: vi.fn(),
     },
+    block: {
+      findFirst: vi.fn(),
+    },
     user: {
+      findUnique: vi.fn(),
       updateMany: vi.fn(),
     },
     $queryRawUnsafe: vi.fn(),
@@ -114,11 +118,18 @@ describe('TransactionsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createPrismaMock();
+    vi.mocked(prisma.block.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.ACTIVE,
+    });
     service = new TransactionsService(prisma);
   });
 
   it('creates a requested transaction using authenticated buyer, product seller, and product price', async () => {
-    vi.mocked(prisma.product.findFirst).mockResolvedValue(productForTransaction);
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(
+      productForTransaction,
+    );
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.transaction.create).mockResolvedValue(transactionResponse);
 
@@ -149,7 +160,9 @@ describe('TransactionsService', () => {
     });
 
     await expect(
-      service.createTransaction(buyer.id, { productId: productForTransaction.id }),
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
@@ -158,7 +171,9 @@ describe('TransactionsService', () => {
     vi.mocked(prisma.product.findFirst).mockResolvedValue(null);
 
     await expect(
-      service.createTransaction(buyer.id, { productId: productForTransaction.id }),
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
@@ -170,20 +185,58 @@ describe('TransactionsService', () => {
     });
 
     await expect(
-      service.createTransaction(buyer.id, { productId: productForTransaction.id }),
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate active transactions for the same buyer and product', async () => {
-    vi.mocked(prisma.product.findFirst).mockResolvedValue(productForTransaction);
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(
+      productForTransaction,
+    );
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue({
       id: 'existing-transaction',
     });
 
     await expect(
-      service.createTransaction(buyer.id, { productId: productForTransaction.id }),
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a transaction when either side has blocked the other', async () => {
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(
+      productForTransaction,
+    );
+    vi.mocked(prisma.block.findFirst).mockResolvedValue({
+      id: 'block-1',
+      blockerId: seller.id,
+      blockedId: buyer.id,
+    });
+
+    await expect(
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a transaction by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createTransaction(buyer.id, {
+        productId: productForTransaction.id,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
 
@@ -199,7 +252,10 @@ describe('TransactionsService', () => {
     vi.mocked(prisma.product.updateMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.transaction.updateMany).mockResolvedValue({ count: 1 });
 
-    const result = await service.reserveTransaction(transactionState.id, seller.id);
+    const result = await service.reserveTransaction(
+      transactionState.id,
+      seller.id,
+    );
 
     expect(prisma.product.updateMany).toHaveBeenCalledWith({
       where: {
@@ -217,10 +273,24 @@ describe('TransactionsService', () => {
   });
 
   it('rejects reservation by buyer or other user', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionState);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionState,
+    );
 
     await expect(
       service.reserveTransaction(transactionState.id, buyer.id),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.transaction.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects reservation by a suspended seller', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: seller.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.reserveTransaction(transactionState.id, seller.id),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.transaction.updateMany).not.toHaveBeenCalled();
   });
@@ -237,7 +307,9 @@ describe('TransactionsService', () => {
   });
 
   it('rejects reservation when the product is already reserved or sold', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionState);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionState,
+    );
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.product.updateMany).mockResolvedValue({ count: 0 });
 
@@ -247,7 +319,9 @@ describe('TransactionsService', () => {
   });
 
   it('rejects reservation when another transaction already reserved the product', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionState);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionState,
+    );
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue({
       id: 'other-reserved-transaction',
     });
@@ -266,12 +340,17 @@ describe('TransactionsService', () => {
       });
     vi.mocked(prisma.transaction.updateMany).mockResolvedValue({ count: 1 });
 
-    const result = await service.cancelTransaction(transactionState.id, buyer.id);
+    const result = await service.cancelTransaction(
+      transactionState.id,
+      buyer.id,
+    );
 
     expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
       where: {
         id: transactionState.id,
-        status: { in: [TxStatus.REQUESTED, TxStatus.RESERVED, TxStatus.PAYMENT_PENDING] },
+        status: {
+          in: [TxStatus.REQUESTED, TxStatus.RESERVED, TxStatus.PAYMENT_PENDING],
+        },
       },
       data: { status: TxStatus.CANCELLED },
     });
@@ -279,7 +358,9 @@ describe('TransactionsService', () => {
   });
 
   it('rejects cancellation by other users', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionState);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionState,
+    );
 
     await expect(
       service.cancelTransaction(transactionState.id, 'other-user'),
@@ -335,7 +416,10 @@ describe('TransactionsService', () => {
     vi.mocked(prisma.product.updateMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.user.updateMany).mockResolvedValue({ count: 1 });
 
-    const result = await service.completeTransaction(transactionState.id, seller.id);
+    const result = await service.completeTransaction(
+      transactionState.id,
+      seller.id,
+    );
 
     expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
       where: {
@@ -382,7 +466,9 @@ describe('TransactionsService', () => {
   });
 
   it('lists only transactions where the current user is a party', async () => {
-    vi.mocked(prisma.transaction.findMany).mockResolvedValue([transactionResponse]);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([
+      transactionResponse,
+    ]);
     vi.mocked(prisma.transaction.count).mockResolvedValue(1);
 
     const result = await service.listTransactions(buyer.id, {
@@ -451,8 +537,22 @@ describe('TransactionsService', () => {
     expect(result.target).toEqual(seller);
   });
 
+  it('rejects reviews by a suspended participant', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createReview(transactionState.id, buyer.id, { rating: 5 }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.review.create).not.toHaveBeenCalled();
+  });
+
   it('rejects reviews for incomplete transactions', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionState);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionState,
+    );
 
     await expect(
       service.createReview(transactionState.id, buyer.id, { rating: 5 }),
@@ -483,7 +583,9 @@ describe('TransactionsService', () => {
   });
 
   it('does not select or return passwordHash, email, or phone in transaction responses', async () => {
-    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(transactionResponse);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionResponse,
+    );
 
     const result = await service.getTransactionForParticipant(
       transactionState.id,
