@@ -47,14 +47,14 @@ describe('Reports DTO validation', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects unsupported report target types for v1', async () => {
+  it('accepts chat message report payloads', async () => {
     await expect(
       validateDto(CreateReportDto, {
         targetType: ReportType.CHAT,
         targetId: '11111111-1111-4111-8111-111111111111',
         reason: '메시지 신고',
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).resolves.toBeInstanceOf(CreateReportDto);
   });
 
   it('enforces pagination limit for my reports', async () => {
