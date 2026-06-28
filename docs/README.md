@@ -102,7 +102,14 @@ CORS_ORIGIN=http://localhost:5173
 UPLOAD_DIR=/var/app/uploads      # 웹 루트 밖, 실행 불가
 MAX_UPLOAD_SIZE=5242880          # 5MB
 
-PG_WEBHOOK_SECRET=change-me      # 결제 웹훅 서명 검증용
+PG_WEBHOOK_SECRET=change-me      # legacy 결제 웹훅 secret fallback
+TOSS_CLIENT_KEY=test_ck_change-me
+TOSS_SECRET_KEY=test_sk_change-me
+TOSS_WEBHOOK_SECRET=change-me
+PAYMENT_SUCCESS_URL=http://localhost:5173/payments/success
+PAYMENT_FAIL_URL=http://localhost:5173/payments/fail
+PAYMENT_CANCEL_URL=http://localhost:5173/payments/cancel
+FRONTEND_ORIGIN=http://localhost:5173
 LOGIN_MAX_ATTEMPTS=5
 RATE_LIMIT_WINDOW=60
 RATE_LIMIT_MAX=100

@@ -171,7 +171,7 @@ model Transaction {
 }
 
 // ── 결제 ────────────────────────────────
-enum PaymentStatus { PENDING PAID REFUND_REQUESTED REFUNDED }
+enum PaymentStatus { PENDING PAID FAILED CANCELED REFUND_REQUESTED REFUNDED }
 
 model Payment {
   id             String        @id @default(uuid())
@@ -181,8 +181,14 @@ model Payment {
   status         PaymentStatus @default(PENDING)
   idempotencyKey String        @unique        // 중복 결제 차단 (SR-24)
   escrowReleased Boolean       @default(false) // 구매확정 후 true (SR-27)
-  pgTxId         String?
+  pgTxId         String?                      // Toss paymentKey
+  orderId        String        @unique
+  orderName      String
+  receiptUrl     String?
+  paidAt         DateTime?
+  refundedAt     DateTime?
   createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 // ── 후기 ────────────────────────────────
@@ -256,4 +262,5 @@ model AuditLog {
    WHERE id = $1 AND status = 'ON_SALE';   -- affected rows=0이면 이미 선점
   ```
 - **Idempotency**: `Payment.idempotencyKey` UNIQUE 제약으로 중복 결제 요청을 DB 레벨에서 차단.
+- **Toss 추적성**: `Payment.orderId`는 Toss checkout/confirm 대조용 UNIQUE 값, `pgTxId`는 Toss `paymentKey` 저장용으로 사용한다.
 - **탈퇴 마스킹(SR-33)**: 사용자 `status=WITHDRAWN` 시 email/phone/nickname을 마스킹 값으로 치환하거나 분리 보관.
