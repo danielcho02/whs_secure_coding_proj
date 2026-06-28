@@ -21,6 +21,7 @@
 - Chats: 상품별 1:1 채팅방, 참여자 전용 조회/메시지/읽음 처리, WebSocket 참여자 검증.
 - Transactions: 거래 요청/예약/취소/완료/목록/후기 API, 서버 기준 amount, 당사자 검증, 중복 진행 거래 및 중복 후기 방지.
 - Payments: Toss Payments sandbox/test 기반 안전결제 생성, Toss 승인 confirm adapter, 웹훅 서명 검증, 에스크로 구매 확정, 환불, 영수증 조회 API.
+- Reports/Blocks/Admin: 사용자/상품 신고, 사용자 차단, 관리자 신고 처리, 상품 hide/restore, 사용자 suspend/restore, 관리자 로그 조회 API.
 - Dev seed: 정상 기능 확인용 seller/buyer/admin, 상품/채팅/거래/후기 더미 데이터.
 
 ## 테스트
@@ -42,6 +43,12 @@
 - Toss success URL의 amount도 신뢰하지 않고 confirm API 호출 전 DB 금액과 비교한다.
 - Webhook은 공개 endpoint지만 HMAC 서명 검증과 DB 대조를 통과해야 상태를 반영한다.
 - 구매 확정 전에는 `escrowReleased=false`로 정산을 보류하고, 구매자 확정 이후에만 `true`로 바꾼다.
+- 신고 생성은 `reporterId/status/adminId`를 body에서 받지 않고 서버가 결정한다. 중복 신고는 `Report @@unique([reporterId, type, targetId])`와 서비스 검사로 409 처리한다.
+- 차단 관계는 `createChat`, `sendMessage`, `createTransaction`에 연결되어 양방향 Block이 있으면 403을 반환한다.
+- 관리자 API는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하고 모든 관리자 조치를 `AdminLog`에 남긴다.
+- 관리자 상품 restore는 기본 `HIDDEN -> ON_SALE`이지만, 활성/완료 거래가 있는 상품은 재판매 방지를 위해 409로 거부한다.
+- 정지 사용자는 로그인/refresh와 Products, Chats, Transactions, Payments의 신규 변경 행위가 제한된다. 읽기 API는 본인 데이터 확인 목적상 허용한다.
+- 관리자 목록/로그 응답은 passwordHash, token, secret, Toss key, refresh token, phone/email을 반환하지 않는다.
 
 ## 남은 작업
 

@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus, UserStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatsService } from './chats.service';
@@ -31,6 +31,12 @@ function createPrismaMock(): PrismaService {
     },
     notification: {
       create: vi.fn(),
+    },
+    block: {
+      findFirst: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
     },
     $queryRawUnsafe: vi.fn(),
   } as unknown as PrismaService;
@@ -102,6 +108,11 @@ describe('ChatsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createPrismaMock();
+    vi.mocked(prisma.block.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.ACTIVE,
+    });
     service = new ChatsService(prisma);
   });
 
@@ -141,6 +152,32 @@ describe('ChatsService', () => {
     await expect(
       service.createChat(buyer.id, { productId: productForChat.id }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.chat.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a chat when either side has blocked the other', async () => {
+    vi.mocked(prisma.product.findFirst).mockResolvedValue(productForChat);
+    vi.mocked(prisma.block.findFirst).mockResolvedValue({
+      id: 'block-1',
+      blockerId: seller.id,
+      blockedId: buyer.id,
+    });
+
+    await expect(
+      service.createChat(buyer.id, { productId: productForChat.id }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.chat.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a chat by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createChat(buyer.id, { productId: productForChat.id }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.chat.create).not.toHaveBeenCalled();
   });
 
@@ -272,6 +309,33 @@ describe('ChatsService', () => {
       }),
     );
     expect(result.content).toBe('안녕하세요');
+  });
+
+  it('rejects sending a message when either participant has blocked the other', async () => {
+    vi.mocked(prisma.chat.findUnique).mockResolvedValue(chatResponse);
+    vi.mocked(prisma.block.findFirst).mockResolvedValue({
+      id: 'block-1',
+      blockerId: seller.id,
+      blockedId: buyer.id,
+    });
+
+    await expect(
+      service.sendMessage('chat-1', buyer.id, { content: '안녕하세요' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects sending a message by a suspended user', async () => {
+    vi.mocked(prisma.chat.findUnique).mockResolvedValue(chatResponse);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: buyer.id,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.sendMessage('chat-1', buyer.id, { content: '안녕하세요' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
   });
 
   it('stores XSS payloads as plain string message data without render structure', async () => {

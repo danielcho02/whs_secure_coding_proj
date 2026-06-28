@@ -213,11 +213,18 @@ model Report {
   id          String       @id @default(uuid())
   reporterId  String
   reporter    User         @relation(fields: [reporterId], references: [id])
+  adminId     String?
+  admin       User?        @relation(fields: [adminId], references: [id])
   type        ReportType
   targetId    String                           // 신고 대상 객체 id
   reason      String
+  description String?
   status      ReportStatus @default(PENDING)
+  adminNote   String?
+  reviewedAt  DateTime?
   createdAt   DateTime     @default(now())
+  @@unique([reporterId, type, targetId])       // 중복 신고 방지
+  @@index([status]) @@index([type]) @@index([adminId])
 }
 
 // ── 알림 ────────────────────────────────
@@ -236,10 +243,14 @@ model Notification {
 model AdminLog {
   id        String   @id @default(uuid())
   adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
   action    String                             // SUSPEND_USER, HIDE_PRODUCT...
+  targetType String                            // REPORT, PRODUCT, USER...
   targetId  String
+  reason    String?
   detail    String?
   createdAt DateTime @default(now())            // append-only (SR-28)
+  @@index([adminId]) @@index([action]) @@index([targetType, targetId])
 }
 
 model AuditLog {
@@ -263,4 +274,6 @@ model AuditLog {
   ```
 - **Idempotency**: `Payment.idempotencyKey` UNIQUE 제약으로 중복 결제 요청을 DB 레벨에서 차단.
 - **Toss 추적성**: `Payment.orderId`는 Toss checkout/confirm 대조용 UNIQUE 값, `pgTxId`는 Toss `paymentKey` 저장용으로 사용한다.
+- **중복 신고 방지**: `Report @@unique([reporterId, type, targetId])`로 같은 사용자가 같은 USER/PRODUCT를 반복 신고하지 못하게 하고 API는 409를 반환한다.
+- **관리자 로그**: `AdminLog`는 append-only로 사용한다. 수정/삭제 API를 만들지 않고, 응답은 `adminId/action/targetType/targetId/reason/createdAt` 중심으로 민감정보를 제외한다.
 - **탈퇴 마스킹(SR-33)**: 사용자 `status=WITHDRAWN` 시 email/phone/nickname을 마스킹 값으로 치환하거나 분리 보관.

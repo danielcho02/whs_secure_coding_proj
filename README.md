@@ -56,6 +56,7 @@ Products 보안 정책:
 - `price`는 정수 `0..100000000` 범위로 검증한다.
 - 이미지 업로드는 5MB 이하, 요청당 최대 10개, 확장자+MIME+매직바이트를 검증한다. SVG/HTML/PHP/JSP 및 `shell.php.jpg` 같은 이중 확장자는 거부한다.
 - 업로드 파일명은 UUID로 재생성하며 원본 파일명은 저장 경로에 사용하지 않는다. `UPLOAD_DIR`은 웹 루트 밖의 실행 불가 경로로 설정한다.
+- 정지된 사용자는 상품 등록/수정/삭제/상태 변경/찜/이미지 업로드 같은 변경 행위가 403으로 제한된다.
 
 ## Chats API
 
@@ -76,6 +77,8 @@ Chats 보안 정책:
 - 채팅 상세와 메시지 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - 메시지 `content`는 HTML로 렌더링하지 않는 일반 문자열 데이터로 저장하고 반환한다. React에서는 기본 텍스트 바인딩을 사용한다.
 - WebSocket `/ws`는 handshake token 인증 후 `join`, `message`, `read` 이벤트마다 서비스 레벨 참여자 검증을 수행한다.
+- 양방향 Block 관계가 있으면 `createChat`과 `sendMessage`를 403으로 거부한다.
+- 정지된 사용자는 채팅방 생성과 메시지 송신이 403으로 제한된다. 기존 채팅 조회는 본인 데이터 확인 목적상 허용한다.
 
 ## Transactions API
 
@@ -99,6 +102,8 @@ Transactions 보안 정책:
 - 후기는 `COMPLETED` 거래의 buyer 또는 seller만 작성할 수 있고, 상대방 `targetId`는 서버에서 계산한다.
 - 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - Prisma ORM만 사용하며 `$queryRawUnsafe`는 거래 모듈에서 사용하지 않는다.
+- 양방향 Block 관계가 있으면 `POST /api/transactions`를 403으로 거부한다.
+- 정지된 사용자는 거래 요청/예약/취소/완료/후기 작성이 403으로 제한된다. 거래 목록/상세 조회는 본인 데이터 확인 목적상 허용한다.
 
 ## Payments API
 
@@ -118,6 +123,47 @@ Payments 보안 정책:
 - 동일 `idempotencyKey` 재요청은 기존 Payment를 반환하고, 같은 거래에 다른 키로 중복 결제하면 409로 거부한다.
 - Toss secret key와 webhook secret은 backend `.env`에만 둔다. frontend에는 client key만 노출 가능하다.
 - `PAID` 이후에도 구매 확정 전까지 `escrowReleased=false`로 정산을 보류한다.
+- 정지된 사용자는 결제 생성/승인/구매확정/환불 요청이 403으로 제한된다. 영수증 조회는 거래 당사자 읽기 API로 유지한다.
+
+## Reports / Blocks API
+
+Base URL: `/api`
+
+- `POST /api/reports`: 인증 필요. `targetType=USER|PRODUCT`, `targetId`, `reason`, `description`만 허용
+- `GET /api/reports/me`: 인증 필요. 내 신고 목록만 페이지네이션 조회
+- `POST /api/blocks`: 인증 필요. `blockedUserId`만 허용하며 중복 차단은 기존 Block 반환
+- `DELETE /api/blocks/:blockedUserId`: 인증 필요. current user의 차단 관계만 해제
+- `GET /api/blocks`: 인증 필요. 내가 차단한 사용자 목록 조회
+
+Reports/Blocks 보안 정책:
+
+- `reporterId`, `blockerId`, `status`, `adminId`, `role` 같은 권한/상태 필드는 클라이언트에서 받지 않는다.
+- 자기 자신 신고/차단과 자기 상품 신고는 400으로 거부한다.
+- 존재하지 않는 대상은 404, 같은 사용자의 같은 대상 중복 신고는 409로 거부한다.
+- 신고/차단 목록은 `limit<=100`으로 제한하고 Prisma ORM만 사용한다.
+
+## Admin Moderation API
+
+Base URL: `/api/admin`
+
+- `GET /api/admin/reports`: ADMIN 전용. `page`, `limit`, `status`, `targetType` 필터
+- `GET /api/admin/reports/:id`: ADMIN 전용. 신고 상세 조회
+- `PATCH /api/admin/reports/:id/status`: ADMIN 전용. `status=REVIEWING|RESOLVED|REJECTED`, `adminNote`만 허용
+- `GET /api/admin/products`: ADMIN 전용. 숨김 상품 포함 관리자 상품 목록
+- `PATCH /api/admin/products/:id/hide`: ADMIN 전용. `isHidden=true`, `status=HIDDEN`
+- `PATCH /api/admin/products/:id/restore`: ADMIN 전용. 안전 검증 후 `isHidden=false`, `status=ON_SALE`
+- `GET /api/admin/users`: ADMIN 전용. 관리자 사용자 목록
+- `PATCH /api/admin/users/:id/suspend`: ADMIN 전용. `User.status=SUSPENDED`
+- `PATCH /api/admin/users/:id/restore`: ADMIN 전용. `User.status=ACTIVE`
+- `GET /api/admin/logs`: ADMIN 전용. append-only 관리자 조치 로그 조회
+
+Admin 보안 정책:
+
+- 모든 `/api/admin/*`는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하며 일반 사용자는 403이다.
+- 관리자 상품 restore는 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 방지를 위해 409로 거부한다.
+- 관리자 자기 자신 정지는 400, 마지막 ACTIVE 관리자 정지는 403으로 거부한다.
+- 모든 관리자 상태 변경은 `AdminLog`에 기록한다. 로그 수정/삭제 API는 없다.
+- 관리자 목록/로그 응답은 `passwordHash`, refresh token, Toss secret/key, token, phone/email을 반환하지 않는다.
 
 ## Dev Seed
 
@@ -161,6 +207,8 @@ Seed 데이터:
 - buyer/seller 채팅방 1개와 메시지 4개
 - `REQUESTED`, `RESERVED`, `COMPLETED` 거래 각 1개
 - 완료 거래에 대한 후기 1개
+- buyer가 별도 `blocked@example.com` 사용자를 차단한 Block 1개
+- 상품 신고 1개와 seed 확인용 AdminLog 1개
 
 Seed 비밀번호는 bcrypt로 해시하며 passwordHash를 출력하지 않는다. 여러 번 실행해도 기존 개발 데이터를 갱신하는 방식으로 동작한다.
 

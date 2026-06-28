@@ -2,6 +2,8 @@ import * as bcrypt from 'bcrypt';
 import {
   PrismaClient,
   ProductStatus,
+  ReportStatus,
+  ReportType,
   Role,
   TxStatus,
   UserStatus,
@@ -56,7 +58,7 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
     update: {
       passwordHash,
@@ -69,6 +71,23 @@ async function main(): Promise<void> {
       passwordHash,
       nickname: 'dev-admin',
       role: Role.ADMIN,
+      status: UserStatus.ACTIVE,
+    },
+  });
+
+  const blockedUser = await prisma.user.upsert({
+    where: { email: 'blocked@example.com' },
+    update: {
+      passwordHash,
+      nickname: 'dev-blocked',
+      role: Role.USER,
+      status: UserStatus.ACTIVE,
+    },
+    create: {
+      email: 'blocked@example.com',
+      passwordHash,
+      nickname: 'dev-blocked',
+      role: Role.USER,
       status: UserStatus.ACTIVE,
     },
   });
@@ -194,6 +213,76 @@ async function main(): Promise<void> {
         targetId: seller.id,
         rating: 5,
         comment: '정상 기능 확인용 완료 거래 후기입니다.',
+      },
+    });
+  }
+
+  await prisma.block.upsert({
+    where: {
+      blockerId_blockedId: {
+        blockerId: buyer.id,
+        blockedId: blockedUser.id,
+      },
+    },
+    update: {},
+    create: {
+      blockerId: buyer.id,
+      blockedId: blockedUser.id,
+    },
+  });
+
+  await prisma.report.upsert({
+    where: {
+      reporterId_type_targetId: {
+        reporterId: buyer.id,
+        type: ReportType.PRODUCT,
+        targetId: onSaleProduct.id,
+      },
+    },
+    update: {
+      reason: '정상 기능 확인용 상품 신고',
+      description: '관리자 신고 목록 확인용 seed 데이터입니다.',
+      status: ReportStatus.PENDING,
+      adminId: null,
+      adminNote: null,
+      reviewedAt: null,
+    },
+    create: {
+      reporterId: buyer.id,
+      type: ReportType.PRODUCT,
+      targetId: onSaleProduct.id,
+      reason: '정상 기능 확인용 상품 신고',
+      description: '관리자 신고 목록 확인용 seed 데이터입니다.',
+      status: ReportStatus.PENDING,
+    },
+  });
+
+  const existingAdminLog = await prisma.adminLog.findFirst({
+    where: {
+      adminId: admin.id,
+      action: 'SEED_ADMIN_LOG',
+      targetType: 'PRODUCT',
+      targetId: onSaleProduct.id,
+    },
+  });
+
+  if (existingAdminLog) {
+    await prisma.adminLog.update({
+      where: { id: existingAdminLog.id },
+      data: {
+        reason: 'seed 확인용 로그',
+        detail: JSON.stringify({ source: 'db:seed' }),
+      },
+    });
+  } else {
+    await prisma.adminLog.create({
+      data: {
+        adminId: admin.id,
+        action: 'SEED_ADMIN_LOG',
+        targetType: 'PRODUCT',
+        targetId: onSaleProduct.id,
+        reason: 'seed 확인용 로그',
+        detail: JSON.stringify({ source: 'db:seed' }),
       },
     });
   }

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, UserStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import path from 'path';
@@ -120,6 +120,8 @@ export class ProductsService {
     sellerId: string,
     dto: CreateProductDto,
   ): Promise<ProductResponse> {
+    await this.assertActiveUser(sellerId);
+
     return this.prisma.product.create({
       data: {
         sellerId,
@@ -201,6 +203,7 @@ export class ProductsService {
     sellerId: string,
     dto: UpdateProductDto,
   ): Promise<ProductResponse> {
+    await this.assertActiveUser(sellerId);
     await this.assertProductSeller(productId, sellerId);
     const data = this.toProductUpdateData(dto);
 
@@ -219,6 +222,7 @@ export class ProductsService {
     productId: string,
     sellerId: string,
   ): Promise<{ id: string; deleted: true }> {
+    await this.assertActiveUser(sellerId);
     await this.assertProductSeller(productId, sellerId);
     await this.prisma.product.update({
       where: { id: productId },
@@ -241,6 +245,7 @@ export class ProductsService {
       throw new BadRequestException('Unsupported product status');
     }
 
+    await this.assertActiveUser(sellerId);
     await this.assertProductSeller(productId, sellerId);
 
     return this.prisma.product.update({
@@ -254,6 +259,8 @@ export class ProductsService {
     productId: string,
     userId: string,
   ): Promise<{ favorited: boolean }> {
+    await this.assertActiveUser(userId);
+
     const product = await this.prisma.product.findFirst({
       where: { id: productId, isHidden: false },
       select: FAVORITE_PRODUCT_SELECT,
@@ -291,6 +298,7 @@ export class ProductsService {
     sellerId: string,
     files: ProductImageUpload[],
   ): Promise<ProductImageResponse[]> {
+    await this.assertActiveUser(sellerId);
     await this.assertProductSeller(productId, sellerId);
 
     if (files.length === 0) {
@@ -399,17 +407,32 @@ export class ProductsService {
     return product;
   }
 
+  private async assertActiveUser(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('User is not active');
+    }
+  }
+
   private assertNotOwnProduct(product: FavoriteProduct, userId: string): void {
     if (product.sellerId === userId) {
       throw new BadRequestException('Cannot favorite your own product');
     }
   }
 
-  private toProductUpdateData(dto: UpdateProductDto): Prisma.ProductUpdateInput {
+  private toProductUpdateData(
+    dto: UpdateProductDto,
+  ): Prisma.ProductUpdateInput {
     return {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.price !== undefined ? { price: dto.price } : {}),
-      ...(dto.description !== undefined ? { description: dto.description } : {}),
+      ...(dto.description !== undefined
+        ? { description: dto.description }
+        : {}),
       ...(dto.category !== undefined ? { category: dto.category } : {}),
       ...(dto.region !== undefined ? { region: dto.region } : {}),
     };
@@ -461,14 +484,18 @@ export class ProductsService {
 
   private getSafeExtension(originalName: string): ImageExtension {
     const basename = path.basename(originalName).toLowerCase();
-    const segments = basename.split('.').filter((segment) => segment.length > 0);
+    const segments = basename
+      .split('.')
+      .filter((segment) => segment.length > 0);
 
     if (segments.length < 2) {
       throw new BadRequestException('Image file extension is required');
     }
 
     if (segments.some((segment) => DANGEROUS_EXTENSIONS.has(segment))) {
-      throw new BadRequestException('Executable file extensions are not allowed');
+      throw new BadRequestException(
+        'Executable file extensions are not allowed',
+      );
     }
 
     const extension = segments[segments.length - 1];
@@ -499,9 +526,7 @@ export class ProductsService {
     return ALLOWED_MIME_TYPES.includes(mimeType as AllowedMimeType);
   }
 
-  private detectImageType(
-    buffer: Buffer,
-  ):
+  private detectImageType(buffer: Buffer):
     | {
         mimeType: AllowedMimeType;
         extension: Exclude<ImageExtension, 'jpeg'>;
@@ -536,7 +561,12 @@ export class ProductsService {
   }
 
   private hasJpegSignature(buffer: Buffer): boolean {
-    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    return (
+      buffer.length >= 3 &&
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff
+    );
   }
 
   private hasPngSignature(buffer: Buffer): boolean {

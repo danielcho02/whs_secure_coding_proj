@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/unbound-method */
 
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus, UserStatus } from '@prisma/client';
 import { mkdir, writeFile } from 'fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig } from '../../config/configuration';
@@ -34,6 +38,9 @@ function createPrismaMock(): PrismaService {
     productImage: {
       count: vi.fn(),
       create: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
     },
     $queryRawUnsafe: vi.fn(),
   } as unknown as PrismaService;
@@ -94,6 +101,10 @@ describe('ProductsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createPrismaMock();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'seller-1',
+      status: UserStatus.ACTIVE,
+    });
     service = new ProductsService(prisma, createConfigService());
   });
 
@@ -122,11 +133,32 @@ describe('ProductsService', () => {
     expect(result).not.toHaveProperty('isHidden');
   });
 
+  it('rejects product creation by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'seller-1',
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createProduct('seller-1', {
+        title: '아이폰 15',
+        price: 300000,
+        description: '상태 좋습니다',
+        category: '디지털',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.product.create).not.toHaveBeenCalled();
+  });
+
   it('lists products with hidden products excluded', async () => {
     vi.mocked(prisma.product.findMany).mockResolvedValue([publicProduct]);
     vi.mocked(prisma.product.count).mockResolvedValue(1);
 
-    const result = await service.listProducts({ page: 1, limit: 20, sort: 'latest' });
+    const result = await service.listProducts({
+      page: 1,
+      limit: 20,
+      sort: 'latest',
+    });
 
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -222,6 +254,18 @@ describe('ProductsService', () => {
     expect(result.title).toBe('수정 제목');
   });
 
+  it('rejects product updates by a suspended seller', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'seller-1',
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.updateProduct('product-1', 'seller-1', { title: '수정 제목' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.product.update).not.toHaveBeenCalled();
+  });
+
   it('blocks other users from updating a product', async () => {
     vi.mocked(prisma.product.findUnique).mockResolvedValue({
       ...ownedProduct,
@@ -303,6 +347,10 @@ describe('ProductsService', () => {
   });
 
   it('creates a favorite toggle using only the authenticated user id', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'buyer-1',
+      status: UserStatus.ACTIVE,
+    });
     vi.mocked(prisma.product.findFirst).mockResolvedValue({
       id: 'product-1',
       sellerId: 'seller-1',
@@ -323,6 +371,18 @@ describe('ProductsService', () => {
     expect(result).toEqual({ favorited: true });
   });
 
+  it('rejects favorite toggles by a suspended user', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'buyer-1',
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.toggleFavorite('product-1', 'buyer-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.favorite.create).not.toHaveBeenCalled();
+  });
+
   it('removes an existing favorite on duplicate toggle', async () => {
     vi.mocked(prisma.product.findFirst).mockResolvedValue({
       id: 'product-1',
@@ -337,7 +397,9 @@ describe('ProductsService', () => {
     const result = await service.toggleFavorite('product-1', 'buyer-1');
 
     expect(prisma.favorite.delete).toHaveBeenCalledWith({
-      where: { userId_productId: { userId: 'buyer-1', productId: 'product-1' } },
+      where: {
+        userId_productId: { userId: 'buyer-1', productId: 'product-1' },
+      },
       select: { id: true },
     });
     expect(result).toEqual({ favorited: false });

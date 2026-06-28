@@ -4,11 +4,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import configuration, { AppConfig } from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { BlocksModule } from './modules/blocks/blocks.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -36,6 +39,9 @@ import { UsersModule } from './modules/users/users.module';
     ChatsModule,
     TransactionsModule,
     PaymentsModule,
+    ReportsModule,
+    BlocksModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

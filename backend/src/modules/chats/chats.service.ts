@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChatLastMessage,
@@ -144,6 +144,8 @@ export class ChatsService {
   ) {}
 
   async createChat(buyerId: string, dto: CreateChatDto): Promise<ChatResponse> {
+    await this.assertActiveUser(buyerId);
+
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, isHidden: false },
       select: PRODUCT_FOR_CHAT_SELECT,
@@ -158,6 +160,8 @@ export class ChatsService {
         'Cannot create a chat for your own product',
       );
     }
+
+    await this.assertNoBlockBetween(buyerId, product.sellerId);
 
     const existingChat = await this.prisma.chat.findUnique({
       where: {
@@ -284,8 +288,9 @@ export class ChatsService {
   ): Promise<ChatMessageResponse> {
     const chat = await this.findChatOrThrow(chatId);
     this.assertParticipant(chat, senderId);
+    await this.assertActiveUser(senderId);
+    await this.assertNoBlockBetween(chat.buyerId, chat.sellerId);
 
-    // TODO(FR-21): Check Block records here before creating the message.
     const message = await this.prisma.chatMessage.create({
       data: {
         chatId,
@@ -335,6 +340,36 @@ export class ChatsService {
   private assertParticipant(chat: ChatRecord, userId: string): void {
     if (chat.buyerId !== userId && chat.sellerId !== userId) {
       throw new ForbiddenException('Access denied');
+    }
+  }
+
+  private async assertActiveUser(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('User is not active');
+    }
+  }
+
+  private async assertNoBlockBetween(
+    userAId: string,
+    userBId: string,
+  ): Promise<void> {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userAId, blockedId: userBId },
+          { blockerId: userBId, blockedId: userAId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw new ForbiddenException('Blocked users cannot interact');
     }
   }
 

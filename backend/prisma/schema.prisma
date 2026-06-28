@@ -49,6 +49,7 @@ model User {
   reviewsWritten       Review[]       @relation("ReviewAuthor")
   reviewsReceived      Review[]       @relation("ReviewTarget")
   reports              Report[]       @relation("ReportReporter")
+  handledReports       Report[]       @relation("ReportAdmin")
   notifications        Notification[]
   blocksMade           Block[]        @relation("Blocker")
   blocksReceived       Block[]        @relation("Blocked")
@@ -233,11 +234,21 @@ model Report {
   id          String       @id @default(uuid())
   reporterId  String
   reporter    User         @relation("ReportReporter", fields: [reporterId], references: [id])
+  adminId     String?
+  admin       User?        @relation("ReportAdmin", fields: [adminId], references: [id])
   type        ReportType
   targetId    String
   reason      String
+  description String?
   status      ReportStatus @default(PENDING)
+  adminNote   String?
+  reviewedAt  DateTime?
   createdAt   DateTime     @default(now())
+
+  @@unique([reporterId, type, targetId])
+  @@index([status])
+  @@index([type])
+  @@index([adminId])
 }
 
 model Notification {
@@ -257,9 +268,15 @@ model AdminLog {
   adminId   String
   admin     User     @relation("AdminActions", fields: [adminId], references: [id])
   action    String
+  targetType String
   targetId  String
+  reason    String?
   detail    String?
   createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([action])
+  @@index([targetType, targetId])
 }
 
 model AuditLog {

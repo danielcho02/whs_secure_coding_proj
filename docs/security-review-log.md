@@ -46,3 +46,16 @@
 - Refund 정책: 당사자만 환불 가능하고, `escrowReleased=true` 이후 일반 환불은 제한한다.
 - 응답 제한: receipt는 거래 당사자만 조회 가능하고 buyer/seller의 passwordHash, email, phone을 선택하지 않는다.
 - SQLi 방어: Payments 모듈은 Prisma ORM만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.
+
+## Reports / Blocks / Admin Moderation
+
+- Reports: `reporterId`, `status`, `adminId`, `role`은 body에서 받지 않고 access token subject와 서버 상태로만 결정한다. USER/PRODUCT 대상만 허용하며 자기 자신 신고와 자기 상품 신고는 400, 중복 신고는 DB unique 제약과 서비스 검사로 409 처리한다.
+- Blocks: `blockerId`는 current user id로만 설정한다. 자기 자신 차단은 400, 중복 차단은 기존 Block 반환으로 idempotent 처리한다.
+- Block 적용: `createChat`, `sendMessage`, `createTransaction`은 buyer/seller 양방향 Block 관계를 조회하고 존재하면 403으로 거부한다.
+- Admin 권한: 모든 `/api/admin/*` 컨트롤러는 `JwtAuthGuard + RolesGuard + @Roles(Role.ADMIN)`로 보호한다. 일반 사용자는 403.
+- AdminLog: 신고 처리, 상품 hide/restore, 사용자 suspend/restore는 모두 `AdminLog`에 append-only 기록한다. 로그 수정/삭제 API는 만들지 않는다.
+- 관리자 상품 restore 안전 검증: 기본 복구 정책은 `HIDDEN -> ON_SALE`이지만, 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 사고 방지를 위해 409로 거부한다.
+- 사용자 정지: `User.status=SUSPENDED` 사용자는 로그인/refresh와 Products, Chats, Transactions, Payments의 신규 변경 행위가 제한된다. 본인 데이터 확인 목적의 읽기 API는 기존 소유자/참여자 검증을 통과하면 허용한다.
+- 마지막 관리자 보호: 관리자 자기 자신 정지는 400, 마지막 ACTIVE 관리자 정지는 403으로 거부한다.
+- 응답 제한: 관리자 목록/로그 응답은 `passwordHash`, refresh token, Toss secret/key, token, phone/email을 선택하지 않는다.
+- SQLi 방어: 신규 Reports/Blocks/Admin 모듈과 기존 연결 제한은 Prisma ORM만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.

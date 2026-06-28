@@ -37,18 +37,34 @@
 - Service: receipt는 당사자만 조회 가능하고 민감정보 미포함.
 - Static: Payments 모듈에서 `$queryRawUnsafe` 사용 없음.
 
+## Reports / Blocks / Admin Moderation
+
+- Reports DTO: `reporterId`, `status`, `adminId`, `role` 주입 400.
+- Reports Service: USER/PRODUCT 신고 생성 성공, 존재하지 않는 대상 404, 자기 자신 신고 400, 자기 상품 신고 400, 중복 신고 409.
+- Reports Service: 내 신고 목록은 current user의 신고만 반환.
+- Blocks DTO: `blockerId`, `status`, `role` 주입 400.
+- Blocks Service: 차단 생성 성공, 자기 자신 차단 400, 중복 차단 기존 Block 반환, 해제는 current user 관계만 삭제.
+- Chats/Transactions: 차단 후 `createChat`, `sendMessage`, `createTransaction` 403.
+- Admin Controllers: 모든 admin controller에 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)` 적용.
+- Admin Service: 신고 목록/상세 조회, 신고 상태 변경과 AdminLog 생성.
+- Admin Service: 상품 hide/restore와 AdminLog 생성, restore 시 활성/완료 거래 상품 재판매 방지.
+- Admin Service: 사용자 suspend/restore와 AdminLog 생성, 자기 자신 suspend 거부, 마지막 ACTIVE 관리자 suspend 거부.
+- Suspended users: Products/Chats/Transactions/Payments 주요 변경 행위 403.
+- Admin Logs: pagination 조회 성공, actor/action/targetType/targetId/reason/createdAt 반환, 민감정보 제외.
+- Static: 신규 모듈 및 연결 제한에서 `$queryRawUnsafe` 사용 없음.
+
 ## 최근 실행 결과
 
-- Backend test: `npm run test` 통과. 22 files / 162 tests.
+- Backend test: `npm run test` 통과. 29 files / 209 tests.
 - Backend lint: `npm run lint` 통과.
 - Backend build: `npm run build` 통과.
-- Frontend build: `npm run build` 통과.
+- Frontend build: 미실행. 이번 작업에서 frontend 파일은 변경하지 않았다.
 - Prisma validate: `npx prisma validate` 통과.
 - Docker compose config: `docker compose config` 통과.
 - Docker compose up: `docker compose up -d` 통과. Postgres/Redis running.
-- Prisma migration: `npx prisma migrate status` 최종 통과. `20260628020031_add_review_author_unique`, `20260628050000_add_payments_toss_fields` 완료 상태 확인.
+- Prisma migration: 최초 `npx prisma migrate status`에서 `20260628090000_add_reports_admin_moderation` 미적용 확인 후 `npx prisma migrate deploy`로 적용. 최종 `npx prisma migrate status` 통과.
 - Dev seed: `npm run db:seed` 통과.
-- Backend start: `timeout 8s npm run start`로 Nest application successfully started 및 Payments routes 매핑 확인 후 timeout으로 종료.
+- Backend start: `timeout 8s npm run start`로 Nest application successfully started 및 Reports/Blocks/Admin routes 매핑 확인 후 timeout으로 종료.
 - Diff whitespace: `git diff --check` 통과.
 
 ## 미실행/환경 제약
