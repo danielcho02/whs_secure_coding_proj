@@ -77,6 +77,74 @@ Chats 보안 정책:
 - 메시지 `content`는 HTML로 렌더링하지 않는 일반 문자열 데이터로 저장하고 반환한다. React에서는 기본 텍스트 바인딩을 사용한다.
 - WebSocket `/ws`는 handshake token 인증 후 `join`, `message`, `read` 이벤트마다 서비스 레벨 참여자 검증을 수행한다.
 
+## Transactions API
+
+Base URL: `/api/transactions`
+
+- `POST /api/transactions`: 인증 필요. `productId`만 허용하며 `buyerId`, `sellerId`, `amount`, `status`는 서버가 결정
+- `PATCH /api/transactions/:id/reserve`: 판매자만 가능. `REQUESTED` 거래를 `RESERVED`로 전환하고 상품 상태를 `RESERVED`로 동기화
+- `PATCH /api/transactions/:id/cancel`: 구매자 또는 판매자만 가능. `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`만 `CANCELLED`로 전환
+- `PATCH /api/transactions/:id/complete`: 판매자만 가능. `RESERVED`, `SHIPPING`만 `COMPLETED`로 전환하고 상품 상태를 `SOLD`로 동기화
+- `GET /api/transactions`: 인증 필요. `role=buyer|seller|all`, `status`, `page`, `limit` 지원. 현재 사용자가 buyer 또는 seller인 거래만 반환
+- `POST /api/transactions/:id/reviews`: 완료 거래 당사자만 가능. `rating`, `comment`만 허용하며 `authorId`, `targetId`, `transactionId`는 서버가 결정
+
+Transactions 보안 정책:
+
+- 거래 요청은 `productId`만 받는다. `buyerId`, `sellerId`, `amount`, `status`, `productPrice` 같은 권한/금액/상태 필드는 DTO whitelist에서 거부한다.
+- 거래 요청의 `buyerId`는 access token subject, `sellerId`와 `amount`는 DB의 상품 판매자와 가격에서만 결정한다.
+- 거래 상태 전이는 서버 상태 머신이 현재 상태와 행위자 권한을 검증한 뒤 수행한다. 클라이언트가 보낸 목표 상태는 사용하지 않는다.
+- 예약, 취소, 완료는 Prisma `$transaction` 안에서 `Transaction.status`와 `Product.status`를 함께 갱신한다.
+- 중복 진행 거래는 같은 구매자와 상품 기준 `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING` 상태가 있으면 거부한다.
+- 내 거래 내역은 현재 사용자가 buyer 또는 seller인 거래만 조회한다. 타인의 거래 ID를 추측해도 서비스 레벨에서 차단한다.
+- 후기는 `COMPLETED` 거래의 buyer 또는 seller만 작성할 수 있고, 상대방 `targetId`는 서버에서 계산한다.
+- 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
+- Prisma ORM만 사용하며 `$queryRawUnsafe`는 거래 모듈에서 사용하지 않는다.
+
+## Dev Seed
+
+개발 환경에서 정상 거래/채팅 흐름을 확인하기 위한 더미 데이터만 제공한다. 취약점 시연용 데이터나 권한 우회용 계정은 포함하지 않는다.
+
+Transactions 구현에서 `Review` 모델에 `@@unique([transactionId, authorId])`가 추가되어 migration이 필요하다. 현재 migration은 `backend/prisma/migrations/20260628020031_add_review_author_unique/migration.sql`에 생성되어 있으며, `Review_transactionId_authorId_key` unique index를 포함한다.
+
+```bash
+cd backend
+npx prisma migrate dev --name add-review-author-unique
+```
+
+검증 결과 `docker compose up -d`로 PostgreSQL/Redis를 실행한 뒤 `npx prisma migrate dev --name add-review-author-unique`를 실행했으며, Prisma는 `Already in sync`와 `Database schema is up to date` 상태를 보고했다. DB의 `_prisma_migrations`에는 `20260628020031_add_review_author_unique`가 완료 상태로 기록되어 있다.
+
+```bash
+cd backend
+npm run db:seed
+# 또는
+npm run seed:dev
+```
+
+검증 결과 `npm run db:seed`가 정상 완료되었다.
+
+Docker/DB 검증 결과:
+
+- `docker compose config`: 통과
+- `docker compose up -d`: 통과, `whs-market-postgres`와 `whs-market-redis` healthy
+- `npx prisma migrate dev --name add-review-author-unique`: 통과, schema up to date
+- `npm run db:seed`: 통과
+- `npm run start`: Nest application successfully started 확인. 서버 프로세스를 남기지 않기 위해 검증 시 timeout으로 종료
+
+Seed 계정:
+
+- `seller@example.com` / `Password123!`
+- `buyer@example.com` / `Password123!`
+- `admin@example.com` / `Password123!`
+
+Seed 데이터:
+
+- 판매자 상품 3개: `ON_SALE`, `RESERVED`, `SOLD`
+- buyer/seller 채팅방 1개와 메시지 4개
+- `REQUESTED`, `RESERVED`, `COMPLETED` 거래 각 1개
+- 완료 거래에 대한 후기 1개
+
+Seed 비밀번호는 bcrypt로 해시하며 passwordHash를 출력하지 않는다. 여러 번 실행해도 기존 개발 데이터를 갱신하는 방식으로 동작한다.
+
 ## Backend Environment
 
 Required backend env values:

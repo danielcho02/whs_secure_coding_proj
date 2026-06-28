@@ -8,6 +8,7 @@ import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { ProductsModule } from './modules/products/products.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     ProductsModule,
     ChatsModule,
+    TransactionsModule,
   ],
 })
 export class AppModule {}

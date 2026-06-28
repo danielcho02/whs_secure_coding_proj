@@ -204,6 +204,8 @@ model Review {
   rating         Int
   comment        String?
   createdAt      DateTime    @default(now())
+
+  @@unique([transactionId, authorId])
 }
 
 enum ReportType {
