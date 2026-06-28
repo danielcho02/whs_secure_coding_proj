@@ -43,3 +43,23 @@ export function NotificationSkeleton() {
     </div>
   );
 }
+
+export function ChatSkeleton() {
+  return (
+    <div className="chat-list" aria-label="채팅을 불러오는 중">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div className="chat-row" key={index}>
+          <div className="skeleton skeleton--image" />
+          <div className="chat-row__body">
+            <div>
+              <div className="skeleton skeleton--line skeleton--short" />
+              <div className="skeleton skeleton--line skeleton--short" />
+            </div>
+            <div className="skeleton skeleton--line skeleton--medium" />
+            <div className="skeleton skeleton--line skeleton--wide" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
-import { Heart, MapPin, Search, SlidersHorizontal } from 'lucide-react';
+import { Heart, MapPin, PackagePlus, Search, SlidersHorizontal } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listProducts,
@@ -157,14 +157,24 @@ export function HomePage() {
           <p className="section-kicker">우리 동네 물건</p>
           <h1 id="market-title">지금 올라온 거래</h1>
         </div>
-        <Button
-          className="market-head__filter"
-          icon={<SlidersHorizontal size={17} />}
-          onClick={() => setIsFilterOpen(true)}
-          variant="secondary"
-        >
-          필터
-        </Button>
+        <div className="market-head__actions">
+          {status === 'authenticated' ? (
+            <Button
+              icon={<PackagePlus size={17} />}
+              onClick={() => navigate('/products/new')}
+            >
+              판매하기
+            </Button>
+          ) : null}
+          <Button
+            className="market-head__filter"
+            icon={<SlidersHorizontal size={17} />}
+            onClick={() => setIsFilterOpen(true)}
+            variant="secondary"
+          >
+            필터
+          </Button>
+        </div>
       </div>
 
       <form

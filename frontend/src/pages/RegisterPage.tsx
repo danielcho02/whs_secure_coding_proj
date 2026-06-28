@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LockKeyhole, Mail, UserRound } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import { toFriendlyError } from '../api/errors';
+import { BrandLogo } from '../ui/BrandLogo';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/useToast';
 
@@ -34,11 +35,8 @@ export function RegisterPage() {
     <main className="auth-screen">
       <section className="auth-panel auth-panel--register" aria-labelledby="register-title">
         <div className="auth-brand">
-          <span className="brand-lockup__symbol">결</span>
-          <div>
-            <p>동네결 시작하기</p>
-            <h1 id="register-title">거래 정보는 선명하게, 계정은 안전하게.</h1>
-          </div>
+          <BrandLogo size="lg" tagline="동네결 시작하기" />
+          <h1 id="register-title">거래 정보는 선명하게, 계정은 안전하게.</h1>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>

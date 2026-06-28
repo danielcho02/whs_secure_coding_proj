@@ -11,8 +11,10 @@ interface DrawerProps {
 
 export function Drawer({ children, onClose, open, title }: DrawerProps) {
   useEffect(() => {
+    document.body.classList.toggle('is-sheet-open', open);
+
     if (!open) {
-      return;
+      return () => document.body.classList.remove('is-sheet-open');
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -22,7 +24,10 @@ export function Drawer({ children, onClose, open, title }: DrawerProps) {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.classList.remove('is-sheet-open');
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [onClose, open]);
 
   if (!open) {

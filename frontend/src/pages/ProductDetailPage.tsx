@@ -1,15 +1,34 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Heart, MapPin, MessageCircle, ShieldCheck } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  Ban,
+  Edit3,
+  Flag,
+  Heart,
+  MapPin,
+  MessageCircle,
+  ShieldCheck,
+  ShoppingBag,
+  Trash2,
+} from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { createChat } from '../api/chats';
 import { toFriendlyError } from '../api/errors';
-import { getProduct, toggleFavorite } from '../api/products';
+import {
+  deleteProduct,
+  getProduct,
+  toggleFavorite,
+  updateProductStatus,
+  type SellerProductStatus,
+} from '../api/products';
+import { createTransaction } from '../api/transactions';
 import { useAuth } from '../auth/useAuth';
 import { formatPrice, formatRelativeTime, productStatusLabel } from '../lib/format';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
 import { ImageFallback } from '../ui/ImageFallback';
+import { BlockModal, ConfirmModal, ReportModal } from '../ui/SafetyActions';
 import { DetailSkeleton } from '../ui/Skeleton';
 import { ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
@@ -19,8 +38,12 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const { status, user } = useAuth();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [liked, setLiked] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const productQuery = useQuery({
     enabled: Boolean(productId),
@@ -37,6 +60,42 @@ export function ProductDetailPage() {
     onSuccess: (chat) => {
       showToast('채팅방을 열었습니다.', 'success');
       navigate(`/chats/${chat.id}`);
+    },
+    onError: (error) => {
+      showToast(toFriendlyError(error).message, 'error');
+    },
+  });
+
+  const transactionMutation = useMutation({
+    mutationFn: createTransaction,
+    onSuccess: (transaction) => {
+      showToast('거래 요청을 보냈습니다.', 'success');
+      navigate(`/transactions/${transaction.id}`);
+    },
+    onError: (error) => {
+      showToast(toFriendlyError(error).message, 'error');
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (nextStatus: SellerProductStatus) =>
+      updateProductStatus(productId ?? '', nextStatus),
+    onSuccess: async (updated) => {
+      await queryClient.invalidateQueries({ queryKey: ['product', updated.id] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      showToast('상품 상태를 변경했습니다.', 'success');
+    },
+    onError: (error) => {
+      showToast(toFriendlyError(error).message, 'error');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProduct(productId ?? ''),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      showToast('판매글을 삭제했습니다.', 'success');
+      navigate('/', { replace: true });
     },
     onError: (error) => {
       showToast(toFriendlyError(error).message, 'error');
@@ -82,6 +141,20 @@ export function ProductDetailPage() {
     }
 
     chatMutation.mutate({ productId: product.id });
+  };
+
+  const handleTransaction = () => {
+    if (!product) {
+      return;
+    }
+
+    if (status !== 'authenticated') {
+      showToast('거래 요청은 로그인 후 사용할 수 있습니다.', 'info');
+      navigate('/login');
+      return;
+    }
+
+    transactionMutation.mutate({ productId: product.id });
   };
 
   if (productQuery.isLoading) {
@@ -179,6 +252,51 @@ export function ProductDetailPage() {
           <ShieldCheck size={20} />
         </section>
 
+        {isOwner ? (
+          <section className="owner-console" aria-label="판매글 관리">
+            <div>
+              <h2>판매글 관리</h2>
+              <p>상태 변경은 서버 응답을 받은 뒤 반영됩니다.</p>
+            </div>
+            <div className="owner-console__actions">
+              <Button
+                icon={<Edit3 size={17} />}
+                onClick={() => navigate(`/products/${product.id}/edit`)}
+                variant="secondary"
+              >
+                수정
+              </Button>
+              {(['ON_SALE', 'RESERVED', 'SOLD'] as SellerProductStatus[]).map((nextStatus) => (
+                <Button
+                  disabled={product.status === nextStatus}
+                  key={nextStatus}
+                  loading={statusMutation.isPending && statusMutation.variables === nextStatus}
+                  onClick={() => statusMutation.mutate(nextStatus)}
+                  variant="quiet"
+                >
+                  {productStatusLabel(nextStatus)}
+                </Button>
+              ))}
+              <Button
+                icon={<Trash2 size={17} />}
+                onClick={() => setDeleteOpen(true)}
+                variant="danger"
+              >
+                삭제
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <section className="safety-strip" aria-label="안전 도구">
+            <Button icon={<Flag size={17} />} onClick={() => setReportOpen(true)} variant="quiet">
+              상품 신고
+            </Button>
+            <Button icon={<Ban size={17} />} onClick={() => setBlockOpen(true)} variant="quiet">
+              판매자 차단
+            </Button>
+          </section>
+        )}
+
         <section className="detail-description" aria-labelledby="description-title">
           <h2 id="description-title">상품 설명</h2>
           <p>{product.description}</p>
@@ -198,7 +316,42 @@ export function ProductDetailPage() {
         >
           {isOwner ? '내 상품' : '채팅 시작'}
         </Button>
+        {!isOwner ? (
+          <Button
+            disabled={product.status !== 'ON_SALE'}
+            icon={<ShoppingBag size={18} />}
+            loading={transactionMutation.isPending}
+            onClick={handleTransaction}
+            variant="secondary"
+          >
+            거래 요청
+          </Button>
+        ) : null}
       </div>
+
+      <ReportModal
+        onClose={() => setReportOpen(false)}
+        open={reportOpen}
+        targetId={product.id}
+        targetLabel={product.title}
+        targetType="PRODUCT"
+      />
+      <BlockModal
+        nickname={product.seller.nickname}
+        onClose={() => setBlockOpen(false)}
+        open={blockOpen}
+        userId={product.seller.id}
+      />
+      <ConfirmModal
+        confirmLabel="삭제"
+        danger
+        description="삭제한 판매글은 목록에서 사라집니다. 서버에서 권한을 다시 확인한 뒤 처리합니다."
+        loading={deleteMutation.isPending}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        open={deleteOpen}
+        title="판매글을 삭제할까요?"
+      />
     </article>
   );
 }

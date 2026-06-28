@@ -13,8 +13,10 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.body.classList.toggle('is-sheet-open', open);
+
     if (!open) {
-      return;
+      return () => document.body.classList.remove('is-sheet-open');
     }
 
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -29,6 +31,7 @@ export function Modal({ children, onClose, open, title }: ModalProps) {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      document.body.classList.remove('is-sheet-open');
       window.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };

@@ -24,6 +24,11 @@ export function ImageFallback({
   if (!src || failed) {
     return (
       <div className={`image-fallback ${className}`.trim()} role="img" aria-label={alt}>
+        <span className="image-fallback__pattern" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
         <span className="image-fallback__mark">{title.trim().slice(0, 1) || '동'}</span>
         {category ? <span className="image-fallback__category">{category}</span> : null}
       </div>

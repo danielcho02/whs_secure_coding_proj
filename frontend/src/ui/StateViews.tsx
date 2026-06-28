@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react';
+import { BrandMark } from './BrandLogo';
 import { Button } from './Button';
 
 interface StateViewProps {
@@ -16,7 +17,9 @@ export function EmptyState({
 }: StateViewProps) {
   return (
     <section className="state-view state-view--empty">
-      <div className="state-view__symbol" aria-hidden="true" />
+      <div className="state-view__symbol" aria-hidden="true">
+        <BrandMark size="lg" />
+      </div>
       <h2>{title}</h2>
       {description ? <p>{description}</p> : null}
       {actionLabel && onAction ? (
@@ -36,7 +39,9 @@ export function ErrorState({
 }: StateViewProps) {
   return (
     <section className="state-view state-view--error">
-      <div className="state-view__symbol" aria-hidden="true" />
+      <div className="state-view__symbol" aria-hidden="true">
+        <BrandMark size="lg" />
+      </div>
       <h2>{title}</h2>
       {description ? <p>{description}</p> : null}
       {onAction ? (

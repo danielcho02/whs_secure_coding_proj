@@ -5,11 +5,15 @@ import {
   LogIn,
   MessageCircle,
   Package,
+  PackagePlus,
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { listNotifications } from '../api/notifications';
 import { useAuth } from '../auth/useAuth';
+import { BrandLogo } from '../ui/BrandLogo';
 import { Button } from '../ui/Button';
 
 const primaryNav = [
@@ -20,19 +24,29 @@ const primaryNav = [
   { to: '/me', label: '마이', icon: User },
 ];
 
+const adminNav = [
+  { to: '/admin/reports', label: '신고 큐' },
+  { to: '/admin/products', label: '상품 관리' },
+  { to: '/admin/users', label: '사용자' },
+  { to: '/admin/logs', label: '운영 로그' },
+];
+
 export function AppShell() {
   const { isAdmin, logout, status, user } = useAuth();
   const navigate = useNavigate();
+  const unreadQuery = useQuery({
+    enabled: status === 'authenticated',
+    queryKey: ['notifications', { unreadOnly: true, shell: true }],
+    queryFn: () => listNotifications({ limit: 1, unreadOnly: true }),
+    refetchInterval: 45_000,
+  });
+  const unreadCount = unreadQuery.data?.total ?? 0;
 
   return (
     <div className="app-frame">
       <aside className="desktop-rail" aria-label="주요 메뉴">
         <button className="brand-lockup" onClick={() => navigate('/')} type="button">
-          <span className="brand-lockup__symbol">결</span>
-          <span>
-            <strong>동네결</strong>
-            <small>안전한 중고거래</small>
-          </span>
+          <BrandLogo compact={false} />
         </button>
 
         <nav className="desktop-rail__nav">
@@ -43,14 +57,30 @@ export function AppShell() {
             </NavLink>
           ))}
           <NavLink className="nav-item" to="/notifications">
-            <Bell size={20} />
+            <span className="nav-item__icon">
+              <Bell size={20} />
+              {unreadCount > 0 ? <i>{Math.min(unreadCount, 99)}</i> : null}
+            </span>
             <span>알림</span>
           </NavLink>
-          {isAdmin ? (
-            <NavLink className="nav-item nav-item--admin" to="/admin">
-              <ShieldCheck size={20} />
-              <span>관리</span>
+          {status === 'authenticated' ? (
+            <NavLink className="nav-item nav-item--sell" to="/products/new">
+              <PackagePlus size={20} />
+              <span>판매글</span>
             </NavLink>
+          ) : null}
+          {isAdmin ? (
+            <div className="admin-nav-group">
+              <NavLink className="nav-item nav-item--admin" to="/admin">
+                <ShieldCheck size={20} />
+                <span>관리</span>
+              </NavLink>
+              {adminNav.map((item) => (
+                <NavLink className="admin-subnav" key={item.to} to={item.to}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           ) : null}
         </nav>
 
@@ -81,14 +111,11 @@ export function AppShell() {
       <div className="app-frame__content">
         <header className="mobile-topbar">
           <button className="brand-lockup brand-lockup--mobile" onClick={() => navigate('/')} type="button">
-            <span className="brand-lockup__symbol">결</span>
-            <span>
-              <strong>동네결</strong>
-              <small>우리 동네에서 이어지는 안전한 중고거래</small>
-            </span>
+            <BrandLogo size="sm" />
           </button>
           <button className="mobile-topbar__bell" onClick={() => navigate('/notifications')} type="button">
             <Bell size={20} />
+            {unreadCount > 0 ? <i>{Math.min(unreadCount, 99)}</i> : null}
             <span className="sr-only">알림</span>
           </button>
         </header>
