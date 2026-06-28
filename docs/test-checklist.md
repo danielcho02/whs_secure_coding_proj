@@ -69,6 +69,14 @@
 - Service: 타인 알림 read는 404, 이미 읽은 알림 read 재요청은 idempotent.
 - Static: Notifications 모듈에서 `$queryRawUnsafe` 사용 없음.
 
+## Dev Seed
+
+- `npm run db:seed`를 2회 연속 실행해 user/product/chat/message/transaction/payment/report/block/notification/adminLog seed가 idempotent하게 갱신되는지 확인.
+- Seed 계정은 bcrypt password hash만 저장하고 console 출력에 `passwordHash`를 포함하지 않는지 확인.
+- Payment seed는 `dev_seed_*` 형태의 테스트 `pgTxId/orderId/idempotencyKey`만 사용하고 실제 Toss secret/key를 포함하지 않는지 확인.
+- CHAT report seed는 `ChatMessage.id`를 `targetId`로 사용하고 reporter가 해당 chat 참여자이며 자기 메시지를 신고하지 않는지 확인.
+- AdminLog seed detail/reason에 password hash, token, refresh token, 실제 결제 secret/key, phone/email을 넣지 않는지 확인.
+
 ## 최근 실행 결과
 
 - Backend install: `npm install` 통과. 취약 패키지 0건.
@@ -77,10 +85,11 @@
 - Backend build: `npm run build` 통과.
 - Frontend build: 미실행. 이번 작업에서 frontend 파일은 변경하지 않았다.
 - Prisma validate: `npx prisma validate` 통과.
-- Backend start: `timeout 8s npm run start`에서 Nest application successfully started 및 Notifications route 매핑 확인, timeout으로 종료.
-- Docker/DB: `docker compose config`, `docker compose up -d`, `npx prisma migrate deploy`, `npx prisma migrate status`, `npm run db:seed` 통과.
-- Static search: `rg '\$queryRawUnsafe|\$queryRaw' backend/src`에서 production 코드 사용 없음. spec mock과 미호출 검증만 확인.
-- Static search: `rg 'passwordHash|refreshToken|TOSS_SECRET|SECRET_KEY' backend/src/modules backend/src/common`에서 auth password/refresh 처리와 민감정보 미노출 테스트만 확인, Toss secret/key 하드코딩 없음.
+- Backend start: 미실행. 이번 seed 보강 검증 요청 범위에는 start 명령이 포함되지 않았다.
+- Docker/DB: `docker compose config`, `docker compose up -d`, `npx prisma migrate status`, `npm run db:seed` 2회 연속 실행 통과.
+- Dev seed DB summary: users=8, products=11, transactions=7, payments=4, reports=5, blocks=3, notifications=4, adminLogs=6 확인.
+- Static search: `rg '\$queryRawUnsafe|\$queryRaw' backend/src backend/prisma`에서 production 코드 사용 없음. spec mock과 미호출 검증만 확인.
+- Static search: `rg 'TOSS_SECRET|SECRET_KEY|sk_live|passwordHash.*console|refreshToken' backend/prisma backend/src`에서 seed 내 민감정보/실제 결제키/비밀번호 hash 출력 없음. 기존 env validation과 auth refresh token 코드만 확인.
 
 ## 미실행/환경 제약
 
