@@ -31,6 +31,32 @@ Base URL: `/api`
 - `GET /api/users/:id`: 공개 프로필 조회
 - `GET /api/users/:id/private`: 본인 또는 ADMIN만 private 프로필 조회
 
+## Products API
+
+Base URL: `/api/products`
+
+- `GET /api/products`: 공개 상품 목록. `page`, `limit`, `sort=latest|priceAsc|priceDesc`, `category`, `min`, `max` 지원
+- `GET /api/products/search`: 공개 검색. `q` 필수, Prisma `contains` 조건으로만 검색
+- `GET /api/products/:id`: 공개 상세 조회, 숨김 상품 제외
+- `POST /api/products`: 인증 필요. `title`, `price`, `description`, `category`, `region`만 허용
+- `PATCH /api/products/:id`: 작성자만 수정 가능
+- `DELETE /api/products/:id`: 작성자만 가능, `isHidden=true`와 `status=HIDDEN`으로 soft delete
+- `PATCH /api/products/:id/status`: 작성자만 가능, `ON_SALE`, `RESERVED`, `SOLD`만 허용
+- `POST /api/products/:id/images`: 작성자만 가능, jpg/jpeg/png/webp 이미지 업로드
+- `POST /api/products/:id/favorite`: 인증 사용자 기준 찜 토글
+
+Products 보안 정책:
+
+- 클라이언트가 보낸 `sellerId`, `userId`, `status`, `isHidden`은 DTO에서 거부하거나 서버 값으로만 결정한다.
+- 상품 등록의 `sellerId`와 찜의 `userId`는 access token subject에서만 가져온다.
+- 상품 수정, 삭제, 상태 변경, 이미지 업로드는 서비스 레벨에서 `product.sellerId === currentUser.id`를 검증한다.
+- 목록, 검색, 상세는 `isHidden=false` 상품만 반환한다.
+- 검색은 Prisma ORM 조건만 사용하며 `$queryRawUnsafe`를 사용하지 않는다.
+- 응답의 판매자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하고 `passwordHash`, `email`, `phone`은 조회하지 않는다.
+- `price`는 정수 `0..100000000` 범위로 검증한다.
+- 이미지 업로드는 5MB 이하, 요청당 최대 10개, 확장자+MIME+매직바이트를 검증한다. SVG/HTML/PHP/JSP 및 `shell.php.jpg` 같은 이중 확장자는 거부한다.
+- 업로드 파일명은 UUID로 재생성하며 원본 파일명은 저장 경로에 사용하지 않는다. `UPLOAD_DIR`은 웹 루트 밖의 실행 불가 경로로 설정한다.
+
 ## Backend Environment
 
 Required backend env values:
