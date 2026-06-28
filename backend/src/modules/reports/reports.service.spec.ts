@@ -3,9 +3,16 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ProductStatus, ReportStatus, ReportType } from '@prisma/client';
+import {
+  ProductStatus,
+  ReportStatus,
+  ReportType,
+  Role,
+  UserStatus,
+} from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportsService } from './reports.service';
@@ -44,6 +51,12 @@ const reportRecord = {
   reviewedAt: null,
   createdAt: new Date('2026-06-28T00:00:00.000Z'),
 };
+const reporterRecord = {
+  id: reporterId,
+  email: 'reporter@example.com',
+  role: Role.USER,
+  status: UserStatus.ACTIVE,
+};
 
 describe('ReportsService', () => {
   let prisma: PrismaService;
@@ -56,6 +69,7 @@ describe('ReportsService', () => {
   });
 
   it('creates a pending product report using the authenticated reporter id', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
     vi.mocked(prisma.product.findUnique).mockResolvedValue({
       id: productId,
       sellerId,
@@ -90,7 +104,9 @@ describe('ReportsService', () => {
   });
 
   it('rejects reports for a missing target', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce(reporterRecord)
+      .mockResolvedValueOnce(null);
 
     await expect(
       service.createReport(reporterId, {
@@ -102,6 +118,8 @@ describe('ReportsService', () => {
   });
 
   it('rejects reporting yourself', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
+
     await expect(
       service.createReport(reporterId, {
         targetType: ReportType.USER,
@@ -112,6 +130,7 @@ describe('ReportsService', () => {
   });
 
   it('rejects reporting your own product', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
     vi.mocked(prisma.product.findUnique).mockResolvedValue({
       id: productId,
       sellerId: reporterId,
@@ -130,6 +149,7 @@ describe('ReportsService', () => {
   });
 
   it('rejects duplicate reports for the same reporter and target', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(reporterRecord);
     vi.mocked(prisma.product.findUnique).mockResolvedValue({
       id: productId,
       sellerId,
@@ -146,6 +166,24 @@ describe('ReportsService', () => {
         reason: '중복 신고',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects report creation by a suspended reporter', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...reporterRecord,
+      status: UserStatus.SUSPENDED,
+    });
+
+    await expect(
+      service.createReport(reporterId, {
+        targetType: ReportType.PRODUCT,
+        targetId: productId,
+        reason: '정지 사용자 신고',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.product.findUnique).not.toHaveBeenCalled();
+    expect(prisma.report.create).not.toHaveBeenCalled();
   });
 
   it('lists only the authenticated reporter reports', async () => {

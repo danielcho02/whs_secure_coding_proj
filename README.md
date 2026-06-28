@@ -18,6 +18,22 @@ npx prisma validate
 npm run start:dev
 ```
 
+Security patch checks:
+
+- `JwtAuthGuard` and WebSocket auth re-read `User.status` from DB; inactive users cannot reuse an unexpired accessToken.
+- Admin routes require both `role=ADMIN` and `User.status=ACTIVE`.
+- Object ownership/participant checks are enforced in services.
+
+```bash
+cd backend
+npm install
+npx prisma validate
+npm run lint
+npm run test
+npm run build
+timeout 8s npm run start
+```
+
 ## Auth API
 
 Base URL: `/api`
@@ -56,7 +72,7 @@ Products 보안 정책:
 - `price`는 정수 `0..100000000` 범위로 검증한다.
 - 이미지 업로드는 5MB 이하, 요청당 최대 10개, 확장자+MIME+매직바이트를 검증한다. SVG/HTML/PHP/JSP 및 `shell.php.jpg` 같은 이중 확장자는 거부한다.
 - 업로드 파일명은 UUID로 재생성하며 원본 파일명은 저장 경로에 사용하지 않는다. `UPLOAD_DIR`은 웹 루트 밖의 실행 불가 경로로 설정한다.
-- 정지된 사용자는 상품 등록/수정/삭제/상태 변경/찜/이미지 업로드 같은 변경 행위가 403으로 제한된다.
+- 정지된 사용자는 기존 accessToken이 남아 있어도 공통 인증 단계에서 HTTP API 접근이 401로 차단된다.
 
 ## Chats API
 
@@ -76,9 +92,9 @@ Chats 보안 정책:
 - `buyerId`, `sellerId`, `senderId`는 access token subject와 DB의 product/chat 관계에서만 결정한다.
 - 채팅 상세와 메시지 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - 메시지 `content`는 HTML로 렌더링하지 않는 일반 문자열 데이터로 저장하고 반환한다. React에서는 기본 텍스트 바인딩을 사용한다.
-- WebSocket `/ws`는 handshake token 인증 후 `join`, `message`, `read` 이벤트마다 서비스 레벨 참여자 검증을 수행한다.
+- WebSocket `/ws`는 handshake token 인증 후 DB status를 재확인하고, `join`, `message`, `read` 이벤트마다 서비스 레벨 참여자 검증을 수행한다.
 - 양방향 Block 관계가 있으면 `createChat`과 `sendMessage`를 403으로 거부한다.
-- 정지된 사용자는 채팅방 생성과 메시지 송신이 403으로 제한된다. 기존 채팅 조회는 본인 데이터 확인 목적상 허용한다.
+- 정지된 사용자는 기존 WebSocket 토큰이 남아 있어도 연결 단계에서 차단된다.
 
 ## Transactions API
 
@@ -103,7 +119,7 @@ Transactions 보안 정책:
 - 응답의 사용자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하며 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - Prisma ORM만 사용하며 `$queryRawUnsafe`는 거래 모듈에서 사용하지 않는다.
 - 양방향 Block 관계가 있으면 `POST /api/transactions`를 403으로 거부한다.
-- 정지된 사용자는 거래 요청/예약/취소/완료/후기 작성이 403으로 제한된다. 거래 목록/상세 조회는 본인 데이터 확인 목적상 허용한다.
+- 정지된 사용자는 기존 accessToken이 남아 있어도 공통 인증 단계에서 거래 API 접근이 401로 차단된다.
 
 ## Payments API
 
@@ -123,7 +139,7 @@ Payments 보안 정책:
 - 동일 `idempotencyKey` 재요청은 기존 Payment를 반환하고, 같은 거래에 다른 키로 중복 결제하면 409로 거부한다.
 - Toss secret key와 webhook secret은 backend `.env`에만 둔다. frontend에는 client key만 노출 가능하다.
 - `PAID` 이후에도 구매 확정 전까지 `escrowReleased=false`로 정산을 보류한다.
-- 정지된 사용자는 결제 생성/승인/구매확정/환불 요청이 403으로 제한된다. 영수증 조회는 거래 당사자 읽기 API로 유지한다.
+- 정지된 사용자는 기존 accessToken이 남아 있어도 공통 인증 단계에서 결제 API 접근이 401로 차단된다.
 
 ## Reports / Blocks API
 
@@ -138,6 +154,7 @@ Base URL: `/api`
 Reports/Blocks 보안 정책:
 
 - `reporterId`, `blockerId`, `status`, `adminId`, `role` 같은 권한/상태 필드는 클라이언트에서 받지 않는다.
+- 정지된 사용자는 신고 생성이 403으로 제한된다.
 - 자기 자신 신고/차단과 자기 상품 신고는 400으로 거부한다.
 - 존재하지 않는 대상은 404, 같은 사용자의 같은 대상 중복 신고는 409로 거부한다.
 - 신고/차단 목록은 `limit<=100`으로 제한하고 Prisma ORM만 사용한다.
@@ -159,7 +176,7 @@ Base URL: `/api/admin`
 
 Admin 보안 정책:
 
-- 모든 `/api/admin/*`는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하며 일반 사용자는 403이다.
+- 모든 `/api/admin/*`는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하며, ADMIN role과 ACTIVE status를 모두 요구한다.
 - 관리자 상품 restore는 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 방지를 위해 409로 거부한다.
 - 관리자 자기 자신 정지는 400, 마지막 ACTIVE 관리자 정지는 403으로 거부한다.
 - 모든 관리자 상태 변경은 `AdminLog`에 기록한다. 로그 수정/삭제 API는 없다.

@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import { AppConfig } from '../../config/configuration';
+import { PrismaService } from '../../modules/prisma/prisma.service';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';
 
 interface RequestWithUser {
@@ -18,10 +19,8 @@ interface RequestWithUser {
   user?: AuthenticatedUser;
 }
 
-interface AccessPayload {
+interface AccessPayloadSubject {
   sub: string;
-  email: string;
-  role: Role;
 }
 
 @Injectable()
@@ -33,6 +32,8 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwtService: JwtService,
     @Inject(ConfigService)
     configService: ConfigService<AppConfig, true>,
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
   ) {
     this.accessSecret = configService.get('auth.jwtAccessSecret', { infer: true });
   }
@@ -50,15 +51,25 @@ export class JwtAuthGuard implements CanActivate {
         secret: this.accessSecret,
       });
 
-      if (!this.isAccessPayload(payload)) {
+      if (!this.isAccessPayloadSubject(payload)) {
         throw new UnauthorizedException('Authentication is required');
       }
 
-      request.user = {
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-      };
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          status: true,
+        },
+      });
+
+      if (!user || user.status !== UserStatus.ACTIVE) {
+        throw new UnauthorizedException('Authentication is required');
+      }
+
+      request.user = user;
 
       return true;
     } catch {
@@ -77,20 +88,12 @@ export class JwtAuthGuard implements CanActivate {
     return token.length > 0 ? token : undefined;
   }
 
-  private isAccessPayload(payload: unknown): payload is AccessPayload {
+  private isAccessPayloadSubject(payload: unknown): payload is AccessPayloadSubject {
     return (
       typeof payload === 'object' &&
       payload !== null &&
       'sub' in payload &&
-      'email' in payload &&
-      'role' in payload &&
-      typeof payload.sub === 'string' &&
-      typeof payload.email === 'string' &&
-      this.isRole(payload.role)
+      typeof payload.sub === 'string'
     );
-  }
-
-  private isRole(role: unknown): role is Role {
-    return role === Role.USER || role === Role.ADMIN;
   }
 }

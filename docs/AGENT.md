@@ -46,8 +46,9 @@
 
 ```
 Helmet → CORS → RateLimit → ValidationPipe(whitelist)
-→ JwtAuthGuard → RolesGuard → OwnershipGuard
-→ Controller → Service → Interceptor → GlobalExceptionFilter
+→ JwtAuthGuard(DB status 재확인) → RolesGuard(role + ACTIVE)
+→ Controller → Service(service-level ownership/participant validation)
+→ Interceptor → GlobalExceptionFilter
 ```
 
 ## 금지 사항

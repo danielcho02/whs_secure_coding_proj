@@ -1,7 +1,7 @@
 import { Inject, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { Socket } from 'socket.io';
@@ -15,6 +15,7 @@ import {
 } from '@nestjs/websockets';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AppConfig } from '../../config/configuration';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   JoinChatEventDto,
   ReadChatEventDto,
@@ -23,10 +24,8 @@ import {
 import { ChatMessageResponse } from './dto/chat-response.dto';
 import { ChatsService } from './chats.service';
 
-interface AccessPayload {
+interface AccessPayloadSubject {
   sub: string;
-  email: string;
-  role: Role;
 }
 
 interface AuthenticatedSocketData {
@@ -60,6 +59,8 @@ export class ChatsGateway implements OnGatewayConnection {
     private readonly jwtService: JwtService,
     @Inject(ConfigService)
     configService: ConfigService<AppConfig, true>,
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
   ) {
     this.accessSecret = configService.get('auth.jwtAccessSecret', {
       infer: true,
@@ -151,15 +152,25 @@ export class ChatsGateway implements OnGatewayConnection {
       { secret: this.accessSecret },
     );
 
-    if (!this.isAccessPayload(payload)) {
+    if (!this.isAccessPayloadSubject(payload)) {
       throw new UnauthorizedException('Authentication is required');
     }
 
-    return {
-      id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-    };
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Authentication is required');
+    }
+
+    return user;
   }
 
   private extractToken(client: ChatSocket): string | undefined {
@@ -229,20 +240,12 @@ export class ChatsGateway implements OnGatewayConnection {
     return `chat:${chatId}`;
   }
 
-  private isAccessPayload(payload: unknown): payload is AccessPayload {
+  private isAccessPayloadSubject(payload: unknown): payload is AccessPayloadSubject {
     return (
       typeof payload === 'object' &&
       payload !== null &&
       'sub' in payload &&
-      'email' in payload &&
-      'role' in payload &&
-      typeof payload.sub === 'string' &&
-      typeof payload.email === 'string' &&
-      this.isRole(payload.role)
+      typeof payload.sub === 'string'
     );
-  }
-
-  private isRole(role: unknown): role is Role {
-    return role === Role.USER || role === Role.ADMIN;
   }
 }

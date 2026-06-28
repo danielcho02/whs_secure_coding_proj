@@ -41,7 +41,7 @@ secondhand-market/
 │   │   │   ├── admin/        # 관리자 전용
 │   │   │   └── notifications/
 │   │   ├── common/
-│   │   │   ├── guards/       # JwtAuthGuard, RolesGuard, OwnershipGuard
+│   │   │   ├── guards/       # JwtAuthGuard, RolesGuard
 │   │   │   ├── interceptors/ # 응답 필드 필터(SR-39), 감사로그
 │   │   │   ├── pipes/        # ValidationPipe(whitelist)
 │   │   │   ├── filters/      # 전역 에러 필터(SR/NFR-07)

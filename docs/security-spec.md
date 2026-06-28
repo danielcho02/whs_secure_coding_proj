@@ -35,7 +35,7 @@
     return this.prisma.chat.findUnique({ where: { id } });
   }
   ```
-- **패치 (OwnershipGuard 또는 서비스 검증)**
+- **패치 (service-level ownership/participant validation)**
   ```ts
   async getChat(id: string, me: string) {
     const chat = await this.prisma.chat.findUnique({ where: { id } });
