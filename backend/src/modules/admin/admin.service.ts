@@ -549,6 +549,34 @@ export class AdminService {
       });
     }
 
+    if (targetType === ReportType.CHAT) {
+      return this.prisma.chatMessage.findUnique({
+        where: { id: targetId },
+        select: {
+          id: true,
+          chatId: true,
+          senderId: true,
+          content: true,
+          imageUrl: true,
+          createdAt: true,
+          sender: { select: PUBLIC_USER_SELECT },
+          chat: {
+            select: {
+              id: true,
+              product: {
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  isHidden: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
     return { id: targetId, type: targetType };
   }
 

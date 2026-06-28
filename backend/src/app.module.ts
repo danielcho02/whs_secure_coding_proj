@@ -12,6 +12,7 @@ import { ChatsModule } from './modules/chats/chats.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -40,6 +41,7 @@ import { UsersModule } from './modules/users/users.module';
     TransactionsModule,
     PaymentsModule,
     ReportsModule,
+    NotificationsModule,
     BlocksModule,
     AdminModule,
   ],

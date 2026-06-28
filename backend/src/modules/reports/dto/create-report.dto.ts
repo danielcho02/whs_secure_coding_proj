@@ -6,6 +6,7 @@ import { trimString } from './report-dto.util';
 export const REPORT_TARGET_TYPE_VALUES = [
   ReportType.USER,
   ReportType.PRODUCT,
+  ReportType.CHAT,
 ] as const;
 
 export class CreateReportDto {

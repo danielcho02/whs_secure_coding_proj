@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Inject, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -33,7 +42,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  getPublicProfile(@Param('id') id: string) {
+  getPublicProfile(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.getPublicProfile(id);
   }
 }
