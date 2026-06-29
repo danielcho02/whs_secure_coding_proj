@@ -1,5 +1,13 @@
 # 최종 보고서 작성 메모
 
+## 최종 프론트 리뷰 후 gap patch 흐름
+
+- 최종 프론트 리뷰에서 전체 품질은 merge 직전 수준으로 확인했지만, LOW 보안 이슈 1건과 API gap 3건을 발견했다.
+- LOW 이슈: `LoginPage.tsx`의 dev/demo password 평문 문자열을 제거하고 `VITE_ENABLE_DEMO_LOGIN`, `VITE_DEMO_PASSWORD` 기반 dev/demo 전용 처리로 변경했다.
+- API gap: 거래 상세, 내 상품, 찜 목록 화면의 degraded UI를 제거하기 위해 `GET /api/transactions/:id`, `GET /api/products/me`, `GET /api/users/me/favorites`를 추가했다.
+- 보안 기준: 객체 접근은 currentUser.id 기준으로 검증하고, 제3자 거래 상세 접근은 404로 통일하며, sellerId/userId query 주입은 신뢰하지 않는다.
+- 최종 시연 기준: mock/fake/dummy 데이터 없이 실제 백엔드 API로 거래 상세, 내 상품 관리, 찜 목록을 렌더링한다.
+
 ## 요구사항 분석
 
 - 중고거래 서비스의 핵심 도메인을 Auth, Users, Products, Chats, Transactions로 분리했다.

@@ -7,11 +7,14 @@
 - Controller: 인증 관련 route 동작 및 guard wiring 검증.
 - JwtAuthGuard: JWT payload는 `sub` 식별 힌트로만 사용하고 DB의 `id/email/role/status`로 `request.user`를 채우는지 검증.
 - JwtAuthGuard: 유효한 accessToken이어도 DB `User.status=SUSPENDED`이면 401.
+- Frontend: demo login 비밀번호 평문 문자열이 `frontend/src`에 남지 않고 `VITE_DEMO_PASSWORD` placeholder만 사용되는지 grep.
 
 ## Products
 
 - DTO validation: `sellerId`, `status`, `isHidden`, `userId` 주입 거부, 가격 범위 검증.
 - Service: 작성자 검증, 숨김 상품 제외, Prisma 검색 조건 사용, 이미지 업로드 검증, 민감정보 응답 제외.
+- Service: `GET /products/me`는 currentUser.id 기준 본인 상품만 반환하고 타인 상품을 제외한다.
+- Service: `GET /products/me` status filter가 동작하고 sellerId/userId query 주입이 권한 우회로 이어지지 않는다.
 - Controller: 인증 필요한 route의 `JwtAuthGuard` 적용 검증.
 
 ## Chats
@@ -26,7 +29,9 @@
 - DTO validation: `buyerId`, `sellerId`, `amount`, `status`, `authorId`, `targetId`, `transactionId` 주입 거부, rating/pagination 범위 검증.
 - Service: 거래 요청, 자기 상품/숨김/SOLD/중복 진행 거래 거부, 서버 기준 amount 저장.
 - Service: 예약/취소/완료 권한과 상태 전이 검증, product status 동기화, 당사자 목록 필터, 중복 후기 거부, 민감정보 응답 제외.
-- Controller: 6개 transactions route 모두 `JwtAuthGuard` 적용 검증.
+- Service: 거래 상세 BOLA 검증. buyer/seller는 조회 가능, 제3자와 없는 id는 404, payment summary는 안전 필드만 반환.
+- Controller: 7개 transactions route 모두 `JwtAuthGuard` 적용 검증.
+- Controller: `GET /transactions/:id`는 `JwtAuthGuard`와 `ParseUUIDPipe` 적용 검증.
 
 ## Payments
 
@@ -68,6 +73,13 @@
 - Service: 읽음 처리는 `notification.userId === currentUser.id` 조건으로만 수행.
 - Service: 타인 알림 read는 404, 이미 읽은 알림 read 재요청은 idempotent.
 - Static: Notifications 모듈에서 `$queryRawUnsafe` 사용 없음.
+
+## Favorites
+
+- Service: `GET /users/me/favorites`는 currentUser.id 기준 본인 찜만 반환하고 타인 찜을 제외한다.
+- Service: hidden product는 공개 목록 정책과 동일하게 찜 목록에서 제외한다.
+- Service: userId query/body 주입이 currentUser 기준 조회를 우회하지 못한다.
+- Controller: `GET /users/me/favorites`에 `JwtAuthGuard` 적용 검증.
 
 ## Dev Seed
 

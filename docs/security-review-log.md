@@ -9,6 +9,27 @@
 - DTO whitelist: 회원가입/로그인/프로필 DTO에서 role, status, trustScore, completedTx 같은 권한/상태 필드 주입을 거부한다.
 - 응답 제한: 공개 프로필과 인증 응답에서 passwordHash 등 내부 필드를 제외한다.
 
+## Demo login 비밀번호 소스 하드코딩 LOW 패치
+
+### 발견된 이슈
+
+- 프론트 최종 리뷰에서 `LoginPage.tsx`에 dev/demo 로그인용 평문 비밀번호 문자열이 남아 있는 LOW 이슈를 발견했다.
+- 실제 운영 비밀값은 아니더라도 소스와 브라우저 번들에 평문 credential처럼 보이는 값이 남는 것은 시연/배포 전 제거 대상이다.
+
+### 패치 내용
+
+- 소스 내 평문 demo password 문자열을 제거했다.
+- demo login UI는 `VITE_ENABLE_DEMO_LOGIN=true`일 때만 표시한다.
+- demo password는 `VITE_DEMO_PASSWORD`에서 읽고, 값이 비어 있으면 demo login 버튼을 disabled 처리한다.
+- `frontend/.env.example`에는 placeholder만 남겼고 실제 demo password 값은 커밋하지 않는다.
+- `VITE_*` 값은 브라우저 번들에 포함되므로 dev/demo QA 전용 값으로만 취급한다는 주석을 추가했다.
+
+### 검증 기준
+
+- `frontend/src`에서 실제 demo password 문자열이 검색되지 않아야 한다.
+- demo login은 여전히 실제 `POST /api/auth/login`을 호출해야 하며 fake login으로 대체하지 않는다.
+- accessToken은 계속 메모리에만 저장하고 refresh token은 httpOnly cookie로만 처리한다.
+
 ## Dev Seed 데이터 보안
 
 - Seed 계정은 기존 개발 비밀번호 정책을 따르되 DB에는 bcrypt hash만 저장하고, console 출력에는 passwordHash를 포함하지 않는다.

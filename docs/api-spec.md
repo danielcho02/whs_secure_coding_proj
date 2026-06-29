@@ -38,11 +38,13 @@ POST /api/auth/login
 | Method | Path | 설명 | 권한 |
 |--------|------|------|------|
 | GET | `/me` | 내 프로필 | 인증 |
+| GET | `/me/favorites` | 내 찜 상품 목록(page, limit) | 🔒 본인 |
 | GET | `/:id` | 공개 프로필(신뢰도·평점) | 공개 |
 | PATCH | `/me` | 프로필 수정 | 🔒 본인만 |
 | GET | `/:id/private` | 연락처 등 민감정보 | 🔒 본인/관리자만 (SR-30) |
 
 > 🔒 `GET /:id`는 UUID id만 허용하며, email·phone 미포함, 공개 필드만 반환한다(SR-29, SR-39).
+> 🔒 `GET /me/favorites`는 query/body의 userId를 받지 않고 access token의 currentUser.id만 사용한다. 숨김 상품은 공개 목록 정책과 동일하게 제외한다.
 
 ---
 
@@ -52,6 +54,7 @@ POST /api/auth/login
 |--------|------|------|------|
 | GET | `/` | 목록(정렬·필터·페이지) | 공개 |
 | GET | `/search` | 검색(키워드·카테고리·가격범위) | 공개 |
+| GET | `/me` | 내 상품 목록(page, limit, status) | 🔒 본인 판매자 |
 | GET | `/:id` | 상세 | 공개 |
 | POST | `/` | 등록 | 인증 |
 | PATCH | `/:id` | 수정 | 🔒 작성자만 (SR-06) |
@@ -67,6 +70,7 @@ POST /api/products
 > 🔒 `price`는 정수·범위 검증(SR-14). `description`은 저장 시 무해, 출력 시 escape(SR-13).
 > 🔒 `PATCH /:id` 시 `sellerId`, `status` 같은 필드는 DTO 화이트리스트로 무시(Mass Assignment, SR-15).
 > 🔒 이미지: 확장자+MIME+매직바이트 검증, UUID 파일명, 실행 불가 경로 저장(SR-16~21).
+> 🔒 `GET /me`는 sellerId/userId query를 받지 않고 currentUser.id 기준으로 조회한다. 본인 관리 화면이므로 HIDDEN 상품도 반환할 수 있다.
 
 ```http
 GET /api/products/search?q=아이폰&category=디지털&min=10000&max=500000
@@ -105,10 +109,12 @@ emit "message" { chatId, content }      → 발신자=참여자 확인 + escape(
 | PATCH | `/:id/cancel` | 취소 | 🔒 당사자만 (SR-08,26) |
 | PATCH | `/:id/complete` | 완료 처리 | 🔒 판매자만 (SR-08) |
 | GET | `/` | 내 거래 내역 | 🔒 당사자만 (SR-35) |
+| GET | `/:id` | 거래 상세 | 🔒 구매자/판매자만 |
 | POST | `/:id/reviews` | 후기 작성 | 🔒 완료 거래 당사자만 |
 
 > 🔒 상태 전이는 현재 상태 + 행위자 권한을 서버에서 검증(상태 머신). 클라가 보낸 목표 상태 그대로 적용 금지(SR-15).
 > 🔒 이미 SOLD 상품 중복 거래 차단(조건부 update + 트랜잭션).
+> 🔒 `GET /:id`는 UUID만 허용하고, 없는 거래와 비당사자 접근을 모두 404로 통일한다. 응답은 거래/상품 요약, buyer/seller 공개 요약, payment 안전 요약(id/status/escrowReleased/createdAt)만 포함한다.
 
 ---
 
