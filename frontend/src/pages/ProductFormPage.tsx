@@ -27,6 +27,8 @@ import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
 const CATEGORIES = ['디지털', '생활', '스포츠', '캠핑', '게임', '의류', '가구', '기타'];
+const PRICE_MAX = 100_000_000;
+const PRICE_ERROR_MESSAGE = '가격은 0원 이상 1억원 이하 숫자로 입력해주세요.';
 
 interface ProductFormState {
   title: string;
@@ -65,6 +67,9 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
 
   const product = productQuery.data;
   const isOwner = mode === 'create' || Boolean(product && product.seller.id === user?.id);
+  const validationErrors = useMemo(() => validateProductForm(form), [form]);
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+  const priceError = errors.price;
 
   useEffect(() => {
     if (!product || mode !== 'edit') {
@@ -142,8 +147,9 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
   });
 
   const handleChange = (key: keyof ProductFormState, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
-    setErrors((current) => ({ ...current, [key]: undefined }));
+    const nextForm = { ...form, [key]: value };
+    setForm(nextForm);
+    setErrors((current) => ({ ...current, [key]: validateProductForm(nextForm)[key] }));
   };
 
   const handleImages = (event: ChangeEvent<HTMLInputElement>) => {
@@ -285,6 +291,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
             <input
               inputMode="numeric"
               min={0}
+              max={PRICE_MAX}
               onChange={(event) => handleChange('price', event.target.value)}
               placeholder="0"
               type="number"
@@ -329,10 +336,12 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
 
       <footer className="editor-submit-bar">
         <div>
-          <strong>{form.price ? `${formatPrice(Number(form.price))}원` : '가격 미입력'}</strong>
-          <span>{mode === 'create' ? '등록 후 사진이 업로드됩니다' : '저장 후 상세로 돌아갑니다'}</span>
+          <strong className={priceError ? 'is-invalid' : ''}>
+            {priceError ? '가격 확인 필요' : form.price ? `${formatPrice(Number(form.price))}원` : '가격 미입력'}
+          </strong>
+          <span>{priceError ?? (mode === 'create' ? '등록 후 사진이 업로드됩니다' : '저장 후 상세로 돌아갑니다')}</span>
         </div>
-        <Button loading={saveMutation.isPending} type="submit">
+        <Button disabled={hasValidationErrors} loading={saveMutation.isPending} type="submit">
           {mode === 'create' ? '판매글 등록' : '수정 저장'}
         </Button>
       </footer>
@@ -352,8 +361,8 @@ function validateProductForm(form: ProductFormState): ProductFormErrors {
     errors.category = '카테고리를 선택해주세요.';
   }
 
-  if (!Number.isSafeInteger(price) || price < 0 || price > 100_000_000) {
-    errors.price = '가격은 0원 이상 1억원 이하 숫자로 입력해주세요.';
+  if (!Number.isSafeInteger(price) || price < 0 || price > PRICE_MAX) {
+    errors.price = PRICE_ERROR_MESSAGE;
   }
 
   if (form.region.trim().length < 2) {

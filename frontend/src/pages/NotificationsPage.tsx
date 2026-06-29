@@ -4,9 +4,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listNotifications,
   markNotificationRead,
+  type AppNotification,
   type NotificationPage,
 } from '../api/notifications';
 import { toFriendlyError } from '../api/errors';
+import { useAuth } from '../auth/useAuth';
 import { formatRelativeTime, notificationTypeLabel } from '../lib/format';
 import { getNotificationTargetPath } from '../lib/navigation';
 import { Button } from '../ui/Button';
@@ -19,6 +21,7 @@ export function NotificationsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { isAdmin } = useAuth();
   const unreadOnly = searchParams.get('unreadOnly') === 'true';
   const queryKey = ['notifications', { unreadOnly }];
 
@@ -63,11 +66,24 @@ export function NotificationsPage() {
       showToast(toFriendlyError(error).message, 'error');
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 
   const notifications = notificationsQuery.data?.items ?? [];
+
+  const openNotification = (notification: AppNotification, targetPath: string | null) => {
+    if (!notification.isRead) {
+      readMutation.mutate(notification.id);
+    }
+
+    if (!targetPath) {
+      showToast('관련 항목을 열 수 없습니다.', 'info');
+      return;
+    }
+
+    navigate(targetPath);
+  };
 
   return (
     <section className="notifications-page" aria-labelledby="notifications-title">
@@ -116,12 +132,27 @@ export function NotificationsPage() {
       {notifications.length > 0 ? (
         <div className="notification-list">
           {notifications.map((notification) => {
-            const targetPath = getNotificationTargetPath(notification.target);
+            const targetPath = getNotificationTargetPath(notification.target, { isAdmin });
 
             return (
               <article
-                className={`notification-row ${notification.isRead ? 'is-read' : ''}`}
+                className={`notification-row notification-row--clickable ${notification.isRead ? 'is-read' : ''}`}
                 key={notification.id}
+                onClick={() => openNotification(notification, targetPath)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) {
+                    return;
+                  }
+
+                  if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  openNotification(notification, targetPath);
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className="notification-row__icon" aria-hidden="true">
                   <Bell size={18} />
@@ -141,7 +172,10 @@ export function NotificationsPage() {
                         readMutation.isPending &&
                         readMutation.variables === notification.id
                       }
-                      onClick={() => readMutation.mutate(notification.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        readMutation.mutate(notification.id);
+                      }}
                       variant="quiet"
                     >
                       읽음
@@ -150,7 +184,10 @@ export function NotificationsPage() {
                   {targetPath ? (
                     <button
                       className="row-link-button"
-                      onClick={() => navigate(targetPath)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openNotification(notification, targetPath);
+                      }}
                       type="button"
                     >
                       <ChevronRight size={18} />

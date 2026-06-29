@@ -1041,8 +1041,23 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.notification-row--clickable {
+  cursor: pointer;
+}
+
+.notification-row--clickable:hover,
+.notification-row--clickable:focus-visible {
+  outline: 0;
+  background: var(--cream);
+}
+
 .notification-row:not(.is-read) {
   background: linear-gradient(90deg, rgb(255 241 223 / 72%), transparent 50%);
+}
+
+.notification-row--clickable:not(.is-read):hover,
+.notification-row--clickable:not(.is-read):focus-visible {
+  background: linear-gradient(90deg, rgb(255 241 223 / 92%), var(--cream) 58%);
 }
 
 .notification-row__icon {
@@ -2236,6 +2251,10 @@ select:focus,
   font-weight: 800;
 }
 
+.editor-submit-bar strong.is-invalid {
+  color: var(--danger);
+}
+
 .owner-console,
 .safety-strip,
 .account-warning {
@@ -2749,6 +2768,49 @@ select:focus,
   background: var(--success);
 }
 
+.status-timeline .is-terminal {
+  color: var(--danger);
+}
+
+.status-timeline .is-terminal i {
+  border-color: var(--danger);
+}
+
+.status-timeline .is-terminal.is-reached i {
+  background: var(--danger);
+}
+
+.terminal-banner {
+  border: 1px solid color-mix(in srgb, var(--line) 72%, var(--notice));
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #fffaf0;
+}
+
+.terminal-banner--refunded {
+  border-color: color-mix(in srgb, var(--river) 34%, var(--line));
+  background: #f3f8ff;
+}
+
+.terminal-banner--cancelled {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--line));
+  background: #fff5f5;
+}
+
+.terminal-banner strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.terminal-banner p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
 .transaction-panel,
 .review-box,
 .payment-summary,
@@ -2771,6 +2833,13 @@ select:focus,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.action-grid__empty {
+  margin: 0;
+  color: var(--warm-gray);
+  font-size: 0.88rem;
+  font-weight: 800;
 }
 
 .payment-summary dl,
@@ -3437,7 +3506,7 @@ select:focus,
   }
 
   .status-timeline {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   }
 
   .status-timeline span {

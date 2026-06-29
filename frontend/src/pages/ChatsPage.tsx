@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import {
@@ -37,6 +38,7 @@ type ChatSocket = Socket;
 interface PendingMessage {
   localId: string;
   content: string;
+  sentAt: number;
   status: 'sending' | 'failed';
 }
 
@@ -44,6 +46,15 @@ interface SocketMessageAck {
   event: 'message';
   data: ChatMessage;
 }
+
+interface ChatMessageCache {
+  items: ChatMessage[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+const MESSAGE_RECONCILE_WINDOW_MS = 15_000;
 
 export function ChatsPage() {
   const navigate = useNavigate();
@@ -112,6 +123,21 @@ export function ChatRoomPage() {
     queryFn: () => listMessages(chatId ?? '', { limit: 100 }),
   });
 
+  const reconcileServerMessage = useCallback(
+    (message: ChatMessage, localId?: string) => {
+      setPendingMessages((current) => removeReconciledPending(current, message, user?.id, localId));
+      queryClient.setQueryData<ChatMessageCache>(['chatMessages', chatId], (current) => {
+        if (!current || current.items.some((item) => item.id === message.id)) {
+          return current;
+        }
+
+        return { ...current, items: [...current.items, message], total: current.total + 1 };
+      });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+    [chatId, queryClient, user?.id],
+  );
+
   useEffect(() => {
     if (!chatId || !user || user.status !== 'ACTIVE') {
       setSocketState(user && user.status !== 'ACTIVE' ? 'blocked' : 'idle');
@@ -142,21 +168,7 @@ export function ChatRoomPage() {
       setSocketState('blocked');
     });
     nextSocket.on('message', (message: ChatMessage) => {
-      void queryClient.setQueryData<{ items: ChatMessage[]; page: number; limit: number; total: number }>(
-        ['chatMessages', chatId],
-        (current) => {
-          if (!current || current.items.some((item) => item.id === message.id)) {
-            return current;
-          }
-
-          return {
-            ...current,
-            items: [...current.items, message],
-            total: current.total + 1,
-          };
-        },
-      );
-      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      reconcileServerMessage(message);
     });
     nextSocket.on('read', () => {
       void queryClient.invalidateQueries({ queryKey: ['chatMessages', chatId] });
@@ -169,7 +181,7 @@ export function ChatRoomPage() {
       nextSocket.disconnect();
       setSocket(null);
     };
-  }, [chatId, queryClient, user]);
+  }, [chatId, queryClient, reconcileServerMessage, user]);
 
   useEffect(() => {
     if (!chatId) {
@@ -192,7 +204,7 @@ export function ChatRoomPage() {
   const messages = messagesQuery.data?.items ?? [];
 
   const sendMutation = useMutation({
-    mutationFn: async ({ text }: { text: string; localId: string }) => {
+    mutationFn: async ({ text }: { text: string; localId: string; sentAt: number }) => {
       if (!chatId) {
         throw new Error('CHAT_ID_REQUIRED');
       }
@@ -208,20 +220,7 @@ export function ChatRoomPage() {
       return sendMessage(chatId, { content: text });
     },
     onSuccess: (message, variables) => {
-      setPendingMessages((current) =>
-        current.filter((item) => item.localId !== variables.localId),
-      );
-      queryClient.setQueryData<{ items: ChatMessage[]; page: number; limit: number; total: number }>(
-        ['chatMessages', chatId],
-        (current) => {
-          if (!current || current.items.some((item) => item.id === message.id)) {
-            return current;
-          }
-
-          return { ...current, items: [...current.items, message], total: current.total + 1 };
-        },
-      );
-      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      reconcileServerMessage(message, variables.localId);
     },
     onError: (error, variables) => {
       setPendingMessages((current) =>
@@ -241,18 +240,29 @@ export function ChatRoomPage() {
     }
 
     const localId = crypto.randomUUID();
-    setPendingMessages((current) => [...current, { localId, content: text, status: 'sending' }]);
+    const sentAt = Date.now();
+    setPendingMessages((current) => [...current, { localId, content: text, sentAt, status: 'sending' }]);
     setContent('');
-    sendMutation.mutate({ text, localId });
+    sendMutation.mutate({ text, localId, sentAt });
+  };
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   };
 
   const retryPending = (pending: PendingMessage) => {
+    const sentAt = Date.now();
     setPendingMessages((current) =>
       current.map((item) =>
-        item.localId === pending.localId ? { ...item, status: 'sending' } : item,
+        item.localId === pending.localId ? { ...item, sentAt, status: 'sending' } : item,
       ),
     );
-    sendMutation.mutate({ text: pending.content, localId: pending.localId });
+    sendMutation.mutate({ text: pending.content, localId: pending.localId, sentAt });
   };
 
   if (chatQuery.isLoading || messagesQuery.isLoading) {
@@ -316,7 +326,7 @@ export function ChatRoomPage() {
         ) : null}
 
         <div className="message-list" aria-live="polite">
-          {messages.length === 0 ? (
+          {messages.length === 0 && pendingMessages.length === 0 ? (
             <div className="message-empty">
               <MessageCircle size={28} />
               <p>첫 메시지를 보내 거래 조건을 확인해보세요.</p>
@@ -363,6 +373,7 @@ export function ChatRoomPage() {
           <input
             maxLength={1000}
             onChange={(event) => setContent(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
             placeholder="메시지 보내기"
             value={content}
           />
@@ -436,4 +447,45 @@ function getCounterpart(chat: Chat | undefined, userId: string | undefined) {
   }
 
   return chat.buyer.id === userId ? chat.seller : chat.buyer;
+}
+
+function removeReconciledPending(
+  pendingMessages: PendingMessage[],
+  message: ChatMessage,
+  currentUserId: string | undefined,
+  localId?: string,
+): PendingMessage[] {
+  if (localId) {
+    return pendingMessages.filter((pending) => pending.localId !== localId);
+  }
+
+  const matchedIndex = pendingMessages.findIndex((pending) =>
+    isMatchingPendingMessage(pending, message, currentUserId),
+  );
+
+  if (matchedIndex < 0) {
+    return pendingMessages;
+  }
+
+  return pendingMessages.filter((_, index) => index !== matchedIndex);
+}
+
+function isMatchingPendingMessage(
+  pending: PendingMessage,
+  message: ChatMessage,
+  currentUserId: string | undefined,
+): boolean {
+  if (!currentUserId || message.sender.id !== currentUserId || pending.status !== 'sending') {
+    return false;
+  }
+
+  const serverTime = new Date(message.createdAt).getTime();
+  if (!Number.isFinite(serverTime)) {
+    return false;
+  }
+
+  return (
+    pending.content === message.content &&
+    Math.abs(serverTime - pending.sentAt) <= MESSAGE_RECONCILE_WINDOW_MS
+  );
 }
