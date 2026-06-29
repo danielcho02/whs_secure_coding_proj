@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -13,6 +14,7 @@ import {
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ListFavoritesDto } from './dto/list-favorites.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { UsersService } from './users.service';
 
@@ -30,6 +32,15 @@ export class UsersController {
   @Patch('me')
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateMeDto) {
     return this.usersService.updateMe(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/favorites')
+  listMyFavorites(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListFavoritesDto,
+  ) {
+    return this.usersService.listMyFavorites(user.id, query);
   }
 
   @UseGuards(JwtAuthGuard)
