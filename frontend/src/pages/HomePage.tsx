@@ -1,5 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { Heart, MapPin, PackagePlus, Search, SlidersHorizontal } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -33,6 +38,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { status } = useAuth();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const q = searchParams.get('q')?.trim() ?? '';
   const category = searchParams.get('category')?.trim() ?? '';
   const sort = parseSort(searchParams.get('sort'));
@@ -132,6 +138,7 @@ export function HomePage() {
         }
         return next;
       });
+      await queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       setLikedIds((current) => {
         const next = new Set(current);

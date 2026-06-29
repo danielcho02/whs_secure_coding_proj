@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { AuthUser } from '../auth/authTypes';
+import type { ProductPage } from './products';
 
 interface ApiSuccess<T> {
   success: true;
@@ -35,6 +36,17 @@ export async function updateMe(payload: UpdateMePayload): Promise<AuthUser> {
 export async function getPublicProfile(userId: string): Promise<PublicUserProfile> {
   const response = await apiClient.get<ApiSuccess<PublicUserProfile>>(
     `/users/${userId}`,
+  );
+  return response.data.data;
+}
+
+export async function listMyFavorites(params: {
+  page?: number;
+  limit?: number;
+} = {}): Promise<ProductPage> {
+  const response = await apiClient.get<ApiSuccess<ProductPage>>(
+    '/users/me/favorites',
+    { params },
   );
   return response.data.data;
 }

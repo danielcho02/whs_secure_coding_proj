@@ -23,8 +23,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
-  const showDemoLogin =
-    import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true';
+  const showDemoLogin = import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true';
+  // VITE_* values are bundled into the browser; this is dev/demo QA data only.
+  const demoPassword = import.meta.env.VITE_DEMO_PASSWORD?.trim() ?? '';
+  const canUseDemoLogin = demoPassword.length > 0;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -42,11 +44,15 @@ export function LoginPage() {
   };
 
   const handleDemoLogin = async (demoEmail: string) => {
-    const devPassword = 'Password123!';
+    if (!canUseDemoLogin) {
+      showToast('시연 비밀번호가 설정되지 않았습니다.', 'info');
+      return;
+    }
+
     setDemoLoading(demoEmail);
 
     try {
-      await login({ email: demoEmail, password: devPassword });
+      await login({ email: demoEmail, password: demoPassword });
       showToast('시연 계정으로 로그인했습니다.', 'success');
       navigate(from, { replace: true });
     } catch (error) {
@@ -105,7 +111,11 @@ export function LoginPage() {
           <section className="demo-login" aria-label="시연 계정 로그인">
             <div className="demo-login__head">
               <span>시연 계정으로 빠르게 확인</span>
-              <small>실제 로그인 API를 호출합니다</small>
+              <small>
+                {canUseDemoLogin
+                  ? '실제 로그인 API를 호출합니다'
+                  : '시연 비밀번호가 설정되지 않았습니다'}
+              </small>
             </div>
             <div className="demo-login__grid">
               {[
@@ -118,6 +128,7 @@ export function LoginPage() {
                   icon={<account.icon size={17} />}
                   key={account.email}
                   loading={demoLoading === account.email}
+                  disabled={!canUseDemoLogin}
                   onClick={() => void handleDemoLogin(account.email)}
                   variant="secondary"
                 >

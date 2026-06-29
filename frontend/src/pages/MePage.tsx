@@ -1,10 +1,22 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Heart, Package, ShieldCheck, UserCog } from 'lucide-react';
-import { listProducts } from '../api/products';
+import {
+  ExternalLink,
+  Heart,
+  HeartOff,
+  Package,
+  ShieldCheck,
+  UserCog,
+} from 'lucide-react';
+import {
+  listMyProducts,
+  toggleFavorite,
+  type Product,
+  type ProductStatus,
+} from '../api/products';
 import { toFriendlyError } from '../api/errors';
-import { updateMe } from '../api/users';
+import { listMyFavorites, updateMe } from '../api/users';
 import { useAuth } from '../auth/useAuth';
 import { formatPrice, productStatusLabel, userStatusLabel } from '../lib/format';
 import { Button } from '../ui/Button';
@@ -130,14 +142,13 @@ export function MePage() {
 }
 
 export function MyProductsPage() {
-  const { user } = useAuth();
   const productsQuery = useQuery({
     queryKey: ['products', { mine: true }],
-    queryFn: () => listProducts({ limit: 100 }),
+    queryFn: () => listMyProducts({ limit: 100 }),
   });
   const myProducts = useMemo(
-    () => (productsQuery.data?.items ?? []).filter((product) => product.seller.id === user?.id),
-    [productsQuery.data?.items, user?.id],
+    () => productsQuery.data?.items ?? [],
+    [productsQuery.data?.items],
   );
   const grouped = useMemo(
     () =>
@@ -178,16 +189,7 @@ export function MyProductsPage() {
           <h2>{productStatusLabel(status)}</h2>
           <div className="photo-shelf">
             {products.map((product) => (
-              <Link key={product.id} to={`/products/${product.id}`}>
-                <ImageFallback
-                  alt={`${product.title} 상품 사진`}
-                  src={product.images[0]?.url}
-                  title={product.title}
-                  category={product.category}
-                />
-                <strong>{product.title}</strong>
-                <span>{formatPrice(product.price)}원</span>
-              </Link>
+              <MyProductCard key={product.id} product={product} />
             ))}
           </div>
         </section>
@@ -197,6 +199,25 @@ export function MyProductsPage() {
 }
 
 export function FavoritesPage() {
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const favoritesQuery = useQuery({
+    queryKey: ['favorites'],
+    queryFn: () => listMyFavorites({ limit: 100 }),
+  });
+  const favoriteMutation = useMutation({
+    mutationFn: toggleFavorite,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      showToast('찜 목록을 업데이트했습니다.', 'success');
+    },
+    onError: (error) => {
+      showToast(toFriendlyError(error).message, 'error');
+    },
+  });
+  const favorites = favoritesQuery.data?.items ?? [];
+
   return (
     <section className="favorites-page" aria-labelledby="favorites-title">
       <header className="page-head">
@@ -205,10 +226,103 @@ export function FavoritesPage() {
           <h1 id="favorites-title">관심 상품</h1>
         </div>
       </header>
-      <EmptyState
-        description="현재 백엔드에는 내가 찜한 상품을 조회하는 API가 없습니다. 목록을 가짜로 채우지 않고 필요한 API가 준비되면 photo shelf로 연결합니다."
-        title="찜 목록 API가 필요합니다"
-      />
+      {favoritesQuery.isError ? (
+        <ErrorState
+          description={toFriendlyError(favoritesQuery.error).message}
+          onAction={() => void favoritesQuery.refetch()}
+          title="찜 목록을 불러오지 못했습니다"
+        />
+      ) : null}
+      {!favoritesQuery.isLoading && !favoritesQuery.isError && favorites.length === 0 ? (
+        <EmptyState
+          description="관심 있는 상품을 찜하면 이곳에서 한 번에 볼 수 있습니다."
+          title="아직 찜한 상품이 없습니다"
+        />
+      ) : null}
+      {favorites.length > 0 ? (
+        <div className="photo-shelf photo-shelf--favorites">
+          {favorites.map((product) => (
+            <FavoriteProductCard
+              key={product.id}
+              loading={favoriteMutation.isPending}
+              onRemove={(productId) => favoriteMutation.mutate(productId)}
+              product={product}
+            />
+          ))}
+        </div>
+      ) : favoritesQuery.isLoading ? (
+        <div className="photo-shelf is-loading" />
+      ) : null}
     </section>
   );
+}
+
+function MyProductCard({ product }: { product: Product }) {
+  const isPubliclyVisible = isPublicProductStatus(product.status);
+
+  return (
+    <article className="photo-shelf__card">
+      <Link className="photo-shelf__main" to={`/products/${product.id}/edit`}>
+        <ImageFallback
+          alt={`${product.title} 상품 사진`}
+          category={product.category}
+          src={product.images[0]?.url}
+          title={product.title}
+        />
+        <strong>{product.title}</strong>
+        <span>{formatPrice(product.price)}원</span>
+      </Link>
+      <div className="photo-shelf__meta">
+        <span>{productStatusLabel(product.status)}</span>
+        {isPubliclyVisible ? (
+          <Link className="button button--quiet" to={`/products/${product.id}`}>
+            <ExternalLink size={15} />
+            <span>공개 보기</span>
+          </Link>
+        ) : (
+          <small>숨김 상태 · 편집만 가능</small>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function FavoriteProductCard({
+  loading,
+  onRemove,
+  product,
+}: {
+  loading: boolean;
+  onRemove: (productId: string) => void;
+  product: Product;
+}) {
+  return (
+    <article className="photo-shelf__card">
+      <Link className="photo-shelf__main" to={`/products/${product.id}`}>
+        <ImageFallback
+          alt={`${product.title} 상품 사진`}
+          category={product.category}
+          src={product.images[0]?.url}
+          title={product.title}
+        />
+        <strong>{product.title}</strong>
+        <span>{formatPrice(product.price)}원</span>
+      </Link>
+      <div className="photo-shelf__meta">
+        <span>{productStatusLabel(product.status)}</span>
+        <Button
+          disabled={loading}
+          icon={<HeartOff size={15} />}
+          onClick={() => onRemove(product.id)}
+          variant="quiet"
+        >
+          찜 해제
+        </Button>
+      </div>
+    </article>
+  );
+}
+
+function isPublicProductStatus(status: ProductStatus): boolean {
+  return status === 'ON_SALE' || status === 'RESERVED' || status === 'SOLD';
 }

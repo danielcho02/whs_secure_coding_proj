@@ -123,6 +123,7 @@ export function ProductDetailPage() {
     try {
       const result = await favoriteMutation.mutateAsync(product.id);
       setLiked(result.favorited);
+      await queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       setLiked(previous);
       showToast(toFriendlyError(error).message, 'error');

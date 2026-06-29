@@ -2980,9 +2980,18 @@ select:focus,
   padding-bottom: 8px;
 }
 
-.photo-shelf a {
+.photo-shelf__card,
+.photo-shelf__main {
   display: grid;
   gap: 6px;
+}
+
+.photo-shelf__card {
+  align-content: start;
+}
+
+.photo-shelf__main {
+  min-width: 0;
 }
 
 .photo-shelf .image-fallback,
@@ -2992,15 +3001,36 @@ select:focus,
   border-radius: 18px;
 }
 
-.photo-shelf strong,
-.photo-shelf span {
+.photo-shelf__main strong,
+.photo-shelf__main span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.photo-shelf span {
+.photo-shelf__main span {
   color: var(--ink-soft);
+  font-weight: 900;
+}
+
+.photo-shelf__meta {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+  color: var(--warm-gray);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.photo-shelf__meta .button {
+  min-height: 36px;
+  padding-inline: 10px;
+  font-size: 0.78rem;
+}
+
+.photo-shelf__meta small {
+  color: var(--notice);
+  font-size: 0.76rem;
   font-weight: 900;
 }
 

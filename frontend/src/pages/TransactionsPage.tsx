@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import {
@@ -24,6 +24,7 @@ import {
   cancelTransaction,
   completeTransaction,
   createReview,
+  getTransaction,
   listTransactions,
   reserveTransaction,
   type Transaction,
@@ -145,15 +146,12 @@ export function TransactionDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const txQuery = useQuery({
-    queryKey: ['transactions', { role: 'all' }],
-    queryFn: () => listTransactions({ role: 'all', limit: 100 }),
+    enabled: Boolean(transactionId),
+    queryKey: ['transaction', transactionId],
+    queryFn: () => getTransaction(transactionId ?? ''),
   });
 
-  const transaction = useMemo(
-    () => txQuery.data?.items.find((item) => item.id === transactionId),
-    [transactionId, txQuery.data?.items],
-  );
-
+  const transaction = txQuery.data;
   const role = transaction?.buyer.id === user?.id ? 'buyer' : 'seller';
 
   const actionMutation = useMutation({
@@ -167,6 +165,7 @@ export function TransactionDetailPage() {
     },
     onSuccess: async () => {
       setConfirmAction(null);
+      await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       showToast('거래 상태가 변경되었습니다.', 'success');
     },
@@ -242,7 +241,11 @@ export function TransactionDetailPage() {
   if (txQuery.isError) {
     return (
       <ErrorState
-        description={toFriendlyError(txQuery.error).message}
+        description={
+          toFriendlyError(txQuery.error).status === 404
+            ? '존재하지 않거나 접근할 수 없는 거래입니다'
+            : toFriendlyError(txQuery.error).message
+        }
         onAction={() => void txQuery.refetch()}
         title="거래 상세를 불러오지 못했습니다"
       />
@@ -252,8 +255,8 @@ export function TransactionDetailPage() {
   if (!transaction) {
     return (
       <EmptyState
-        description="현재 백엔드에는 거래 단건 조회 API가 없어 목록에 없는 거래는 상세를 표시할 수 없습니다."
-        title="거래 상세 API가 필요합니다"
+        description="존재하지 않거나 접근할 수 없는 거래입니다"
+        title="거래를 찾을 수 없습니다"
       />
     );
   }

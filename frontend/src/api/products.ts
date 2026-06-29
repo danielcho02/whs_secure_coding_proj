@@ -41,6 +41,12 @@ export interface ProductListParams {
   max?: number;
 }
 
+export interface MyProductListParams {
+  page?: number;
+  limit?: number;
+  status?: ProductStatus;
+}
+
 export interface ProductSearchParams extends ProductListParams {
   q: string;
 }
@@ -77,6 +83,15 @@ export async function listProducts(
   params: ProductListParams = {},
 ): Promise<ProductPage> {
   const response = await apiClient.get<ApiSuccess<ProductPage>>('/products', {
+    params,
+  });
+  return response.data.data;
+}
+
+export async function listMyProducts(
+  params: MyProductListParams = {},
+): Promise<ProductPage> {
+  const response = await apiClient.get<ApiSuccess<ProductPage>>('/products/me', {
     params,
   });
   return response.data.data;
