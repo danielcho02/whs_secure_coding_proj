@@ -80,6 +80,13 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
     });
   }, [mode, product]);
 
+  useEffect(() => {
+    document.body.classList.add('has-sticky-action');
+    return () => {
+      document.body.classList.remove('has-sticky-action');
+    };
+  }, []);
+
   const previews = useMemo(
     () => imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [imageFiles],
