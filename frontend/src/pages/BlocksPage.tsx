@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, ShieldOff } from 'lucide-react';
 import { deleteBlock, listBlocks } from '../api/blocks';
 import { toFriendlyError } from '../api/errors';
+import { trustSummary } from '../lib/format';
 import { Button } from '../ui/Button';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
@@ -63,7 +64,7 @@ export function BlocksPage() {
               <div>
                 <strong>{block.blocked.nickname}</strong>
                 <span>
-                  신뢰 {block.blocked.trustScore} · 거래 {block.blocked.completedTx}회
+                  {trustSummary(block.blocked.completedTx, block.blocked.trustScore)}
                 </span>
               </div>
               <Button

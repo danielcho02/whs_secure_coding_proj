@@ -24,7 +24,12 @@ import {
 } from '../api/products';
 import { createTransaction } from '../api/transactions';
 import { useAuth } from '../auth/useAuth';
-import { formatPrice, formatRelativeTime, productStatusLabel } from '../lib/format';
+import {
+  formatPrice,
+  formatRelativeTime,
+  productStatusLabel,
+  trustSummary,
+} from '../lib/format';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
 import { ImageFallback } from '../ui/ImageFallback';
@@ -187,7 +192,7 @@ export function ProductDetailPage() {
           <ArrowLeft size={20} />
         </IconButton>
         <Link className="detail-topbar__home" to="/">
-          동네결
+          홈으로
         </Link>
       </div>
 
@@ -256,7 +261,9 @@ export function ProductDetailPage() {
           <div className="seller-band__avatar">{product.seller.nickname.slice(0, 1)}</div>
           <div>
             <strong>{product.seller.nickname}</strong>
-            <span>거래 {product.seller.completedTx}회 · 신뢰 {product.seller.trustScore}</span>
+            <span>
+              {trustSummary(product.seller.completedTx, product.seller.trustScore)}
+            </span>
           </div>
           <ShieldCheck size={20} />
         </section>
@@ -315,7 +322,7 @@ export function ProductDetailPage() {
       <div className="sticky-action">
         <div>
           <span>{formatPrice(product.price)}원</span>
-          <small>{productStatusLabel(product.status)}</small>
+          <small>동네결 안전거래로 요청할 수 있어요</small>
         </div>
         <Button
           disabled={isOwner || product.status !== 'ON_SALE'}

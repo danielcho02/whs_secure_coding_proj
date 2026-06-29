@@ -104,10 +104,12 @@ export class NotificationsService {
 
   private toNotificationTitle(type: string): string {
     const titles: Record<string, string> = {
-      CHAT: '채팅 알림',
-      TX: '거래 알림',
-      REPORT: '신고 알림',
-      FAVORITE: '관심 알림',
+      CHAT: '새 메시지가 도착했습니다',
+      TRANSACTION: '거래 진행 상황을 확인해주세요',
+      TX: '거래 진행 상황을 확인해주세요',
+      REPORT: '신고가 처리되었습니다',
+      ADMIN_REPORT: '검토할 신고가 있습니다',
+      FAVORITE: '관심 상품 소식',
     };
 
     return titles[type] ?? '알림';

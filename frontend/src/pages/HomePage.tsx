@@ -17,7 +17,12 @@ import {
 import { toFriendlyError } from '../api/errors';
 import { useAuth } from '../auth/useAuth';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { formatPrice, formatRelativeTime, productStatusLabel } from '../lib/format';
+import {
+  formatPrice,
+  formatRelativeTime,
+  productStatusLabel,
+  trustSummary,
+} from '../lib/format';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
@@ -26,7 +31,7 @@ import { ProductFeedSkeleton } from '../ui/Skeleton';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
-const CATEGORY_OPTIONS = ['', '디지털', '생활', '스포츠', '캠핑', '게임'];
+const CATEGORY_OPTIONS = ['', '디지털', '생활', '스포츠', '캠핑', '게임/취미'];
 const SORT_OPTIONS: Array<{ value: ProductSort; label: string }> = [
   { value: 'latest', label: '최신순' },
   { value: 'priceAsc', label: '낮은 가격' },
@@ -162,7 +167,7 @@ export function HomePage() {
       <div className="market-head">
         <div>
           <p className="section-kicker">우리 동네 물건</p>
-          <h1 id="market-title">지금 올라온 거래</h1>
+          <h1 id="market-title">지금 올라온 물건</h1>
         </div>
         <div className="market-head__actions">
           {status === 'authenticated' ? (
@@ -195,7 +200,7 @@ export function HomePage() {
         <input
           aria-label="상품 검색"
           onChange={(event) => setSearchText(event.target.value)}
-          placeholder="상품명, 카테고리, 동네 키워드"
+          placeholder="아이폰, 자전거, 강남구..."
           type="search"
           value={searchText}
         />
@@ -316,7 +321,7 @@ function ProductTile({
   const thumbnail = product.images[0]?.url ?? null;
 
   return (
-    <article className="product-tile">
+    <article className={`product-tile product-tile--${statusClass(product.status)}`}>
       <Link className="product-tile__image-link" to={`/products/${product.id}`}>
         <ImageFallback
           alt={`${product.title} 상품 사진`}
@@ -344,7 +349,9 @@ function ProductTile({
         </div>
         <div className="product-tile__seller">
           <span>{product.seller.nickname}</span>
-          <span>신뢰 {product.seller.trustScore}</span>
+          <span>
+            {trustSummary(product.seller.completedTx, product.seller.trustScore)}
+          </span>
         </div>
       </div>
 

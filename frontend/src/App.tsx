@@ -9,6 +9,7 @@ import { ProductDetailPage } from './pages/ProductDetailPage';
 import { ProductFormPage } from './pages/ProductFormPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PlaceholderPage } from './pages/PlaceholderPage';
 import { ChatsPage, ChatRoomPage } from './pages/ChatsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { BlocksPage } from './pages/BlocksPage';
@@ -36,6 +37,15 @@ export default function App() {
     <Routes>
       <Route element={<LoginPage />} path="/login" />
       <Route element={<RegisterPage />} path="/register" />
+      <Route
+        element={
+          <PlaceholderPage
+            title="비밀번호 재설정 준비 중"
+            description="계정 복구 기능은 곧 제공됩니다. 지금은 관리자에게 문의해주세요."
+          />
+        }
+        path="/forgot-password"
+      />
 
       <Route element={<AppShell />}>
         <Route element={<HomePage />} index />

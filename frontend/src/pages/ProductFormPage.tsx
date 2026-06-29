@@ -26,7 +26,7 @@ import { DetailSkeleton } from '../ui/Skeleton';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
-const CATEGORIES = ['디지털', '생활', '스포츠', '캠핑', '게임', '의류', '가구', '기타'];
+const CATEGORIES = ['디지털', '생활', '스포츠', '캠핑', '게임/취미', '의류', '가구', '기타'];
 const PRICE_MAX = 100_000_000;
 const PRICE_ERROR_MESSAGE = '가격은 0원 이상 1억원 이하 숫자로 입력해주세요.';
 
@@ -247,7 +247,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
           <CheckCircle2 size={20} />
           <div>
             <h2>기본 정보</h2>
-            <p>검색과 신고 검토에 그대로 쓰이는 정보입니다.</p>
+            <p>검색 결과와 상품 목록에 표시되는 정보입니다.</p>
           </div>
         </div>
         <label className="field">
@@ -282,7 +282,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
           <MapPin size={20} />
           <div>
             <h2>가격과 동네</h2>
-            <p>금액은 숫자로만 입력하고, 결제 금액은 서버가 확정합니다.</p>
+            <p>입력한 금액으로 거래가 진행됩니다.</p>
           </div>
         </div>
         <div className="editor-grid">
@@ -293,7 +293,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
               min={0}
               max={PRICE_MAX}
               onChange={(event) => handleChange('price', event.target.value)}
-              placeholder="0"
+              placeholder="예: 50000"
               type="number"
               value={form.price}
             />
@@ -332,6 +332,9 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
             <span className="field-error">{errors.description}</span>
           ) : null}
         </label>
+        <p className="editor-policy-note">
+          주류, 의약품, 개인정보, 위조 상품처럼 거래가 제한된 품목은 등록할 수 없습니다.
+        </p>
       </section>
 
       <footer className="editor-submit-bar">
@@ -339,7 +342,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
           <strong className={priceError ? 'is-invalid' : ''}>
             {priceError ? '가격 확인 필요' : form.price ? `${formatPrice(Number(form.price))}원` : '가격 미입력'}
           </strong>
-          <span>{priceError ?? (mode === 'create' ? '등록 후 사진이 업로드됩니다' : '저장 후 상세로 돌아갑니다')}</span>
+          <span>{priceError ?? (mode === 'create' ? '사진과 함께 상품이 등록됩니다' : '저장 후 상세로 돌아갑니다')}</span>
         </div>
         <Button disabled={hasValidationErrors} loading={saveMutation.isPending} type="submit">
           {mode === 'create' ? '판매글 등록' : '수정 저장'}
@@ -361,7 +364,7 @@ function validateProductForm(form: ProductFormState): ProductFormErrors {
     errors.category = '카테고리를 선택해주세요.';
   }
 
-  if (!Number.isSafeInteger(price) || price < 0 || price > PRICE_MAX) {
+  if (form.price.trim() === '' || !Number.isSafeInteger(price) || price < 0 || price > PRICE_MAX) {
     errors.price = PRICE_ERROR_MESSAGE;
   }
 

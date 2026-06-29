@@ -21,7 +21,7 @@ export function ReportsPage() {
       <header className="page-head">
         <div>
           <p className="section-kicker">신고 내역</p>
-          <h1 id="reports-title">안전 요청 처리 흐름</h1>
+          <h1 id="reports-title">내 신고 내역</h1>
         </div>
       </header>
 
