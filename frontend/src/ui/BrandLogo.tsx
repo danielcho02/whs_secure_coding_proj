@@ -42,7 +42,7 @@ export function BrandWordmark({ compact = false }: { compact?: boolean }) {
   return (
     <span className="brand-wordmark">
       <strong>동네결</strong>
-      {!compact ? <small>우리 동네에서 이어지는 안전한 중고거래</small> : null}
+      {!compact ? <small>안전한 동네 중고거래</small> : null}
     </span>
   );
 }
@@ -59,7 +59,7 @@ export function BrandLogo({
       <span className="brand-wordmark">
         <strong>동네결</strong>
         {!compact ? (
-          <small>{tagline ?? '우리 동네에서 이어지는 안전한 중고거래'}</small>
+          <small>{tagline ?? '안전한 동네 중고거래'}</small>
         ) : null}
       </span>
     </span>

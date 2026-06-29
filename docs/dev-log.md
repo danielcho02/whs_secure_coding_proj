@@ -1,5 +1,13 @@
 # 개발 로그
 
+## 2026-06-29 / branch: fix/frontend-browser-qa-polish
+
+### 브라우저 QA polish
+
+- 브라우저 QA에서 발견한 이미지 fallback, toast 위치, 한국어 줄바꿈, 로그인 실패 안내를 수정했다.
+- 상품/채팅/거래/관리자 썸네일은 공통 fallback UI를 사용하고, 실패한 이미지의 broken image/alt 텍스트가 화면에 노출되지 않게 보완했다.
+- 모바일 하단 탭바, 상품 상세 sticky CTA, toast 간격을 safe-area 기준으로 조정했다.
+
 ## 2026-06-29 / branch: feat/frontend-marketplace-ui
 
 ### 프론트 최종 리뷰 후 degraded UI 제거용 API 보완

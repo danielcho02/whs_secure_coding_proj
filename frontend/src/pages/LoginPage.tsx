@@ -37,7 +37,7 @@ export function LoginPage() {
       showToast('동네결에 다시 오신 걸 환영합니다.', 'success');
       navigate(from, { replace: true });
     } catch (error) {
-      showToast(toFriendlyError(error).message, 'error');
+      showToast(getLoginErrorMessage(error), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -56,7 +56,12 @@ export function LoginPage() {
       showToast('시연 계정으로 로그인했습니다.', 'success');
       navigate(from, { replace: true });
     } catch (error) {
-      showToast(toFriendlyError(error).message, 'error');
+      showToast(
+        getLoginErrorMessage(error, {
+          suspendedDemo: demoEmail === 'suspended@example.com',
+        }),
+        'error',
+      );
     } finally {
       setDemoLoading(null);
     }
@@ -67,7 +72,10 @@ export function LoginPage() {
       <section className="auth-panel" aria-labelledby="login-title">
         <div className="auth-brand">
           <BrandLogo size="lg" />
-          <h1 id="login-title">우리 동네에서 이어지는 안전한 중고거래</h1>
+          <h1 id="login-title">
+            <span>우리 동네에서 이어지는</span>
+            <span>안전한 중고거래</span>
+          </h1>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -113,7 +121,7 @@ export function LoginPage() {
               <span>시연 계정으로 빠르게 확인</span>
               <small>
                 {canUseDemoLogin
-                  ? '실제 로그인 API를 호출합니다'
+                  ? '시연 계정으로 실제 흐름을 확인할 수 있어요'
                   : '시연 비밀번호가 설정되지 않았습니다'}
               </small>
             </div>
@@ -128,7 +136,7 @@ export function LoginPage() {
                   icon={<account.icon size={17} />}
                   key={account.email}
                   loading={demoLoading === account.email}
-                  disabled={!canUseDemoLogin}
+                  disabled={!canUseDemoLogin || demoLoading !== null}
                   onClick={() => void handleDemoLogin(account.email)}
                   variant="secondary"
                 >
@@ -145,4 +153,25 @@ export function LoginPage() {
       </section>
     </main>
   );
+}
+
+function getLoginErrorMessage(
+  error: unknown,
+  options: { suspendedDemo?: boolean } = {},
+): string {
+  const friendly = toFriendlyError(error);
+
+  if (!friendly.status) {
+    return '서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.';
+  }
+
+  if (friendly.status === 429 || friendly.code === 'RATE_LIMITED') {
+    return '로그인 시도가 많습니다. 잠시 후 다시 시도해주세요.';
+  }
+
+  if (options.suspendedDemo) {
+    return '이 시연 계정은 이용 제한 상태라 로그인되지 않습니다.';
+  }
+
+  return '이메일 또는 비밀번호가 올바르지 않습니다.';
 }

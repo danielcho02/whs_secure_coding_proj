@@ -76,6 +76,11 @@ const ADMIN_PRODUCT_SELECT = {
   seller: {
     select: PUBLIC_USER_SELECT,
   },
+  images: {
+    orderBy: { order: 'asc' },
+    take: 1,
+    select: { url: true },
+  },
 } satisfies Prisma.ProductSelect;
 
 const PRODUCT_STATE_SELECT = {
@@ -590,6 +595,7 @@ export class AdminService {
       region: product.region,
       status: product.status,
       isHidden: product.isHidden,
+      thumbnailUrl: product.images?.[0]?.url ?? null,
       createdAt: product.createdAt,
       seller: product.seller,
     };

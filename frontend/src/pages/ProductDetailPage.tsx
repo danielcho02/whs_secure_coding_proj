@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -44,6 +44,14 @@ export function ProductDetailPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('has-sticky-action');
+
+    return () => {
+      document.body.classList.remove('has-sticky-action');
+    };
+  }, []);
 
   const productQuery = useQuery({
     enabled: Boolean(productId),
