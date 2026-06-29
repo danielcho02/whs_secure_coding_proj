@@ -12,7 +12,7 @@ import {
   ShoppingBag,
   Trash2,
 } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { createChat } from '../api/chats';
 import { toFriendlyError } from '../api/errors';
 import {
@@ -24,7 +24,12 @@ import {
 } from '../api/products';
 import { createTransaction } from '../api/transactions';
 import { useAuth } from '../auth/useAuth';
-import { formatPrice, formatRelativeTime, productStatusLabel } from '../lib/format';
+import {
+  formatPrice,
+  formatRelativeTime,
+  productStatusLabel,
+  trustDetail,
+} from '../lib/format';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
 import { ImageFallback } from '../ui/ImageFallback';
@@ -186,9 +191,6 @@ export function ProductDetailPage() {
         <IconButton label="뒤로 가기" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </IconButton>
-        <Link className="detail-topbar__home" to="/">
-          동네결
-        </Link>
       </div>
 
       <section className="detail-hero" aria-label="상품 사진">
@@ -256,7 +258,9 @@ export function ProductDetailPage() {
           <div className="seller-band__avatar">{product.seller.nickname.slice(0, 1)}</div>
           <div>
             <strong>{product.seller.nickname}</strong>
-            <span>거래 {product.seller.completedTx}회 · 신뢰 {product.seller.trustScore}</span>
+            <span>
+              {trustDetail(product.seller.completedTx, product.seller.trustScore)}
+            </span>
           </div>
           <ShieldCheck size={20} />
         </section>
@@ -315,7 +319,7 @@ export function ProductDetailPage() {
       <div className="sticky-action">
         <div>
           <span>{formatPrice(product.price)}원</span>
-          <small>{productStatusLabel(product.status)}</small>
+          <small>안전거래 요청 가능</small>
         </div>
         <Button
           disabled={isOwner || product.status !== 'ON_SALE'}

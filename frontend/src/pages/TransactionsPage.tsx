@@ -44,17 +44,6 @@ import { ConfirmModal } from '../ui/SafetyActions';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
-const TX_STATUSES: TransactionStatus[] = [
-  'REQUESTED',
-  'RESERVED',
-  'PAYMENT_PENDING',
-  'PAID',
-  'SHIPPING',
-  'COMPLETED',
-  'CANCELLED',
-  'REFUNDED',
-];
-
 const PROGRESS_TX_STATUSES: TransactionStatus[] = [
   'REQUESTED',
   'RESERVED',
@@ -70,22 +59,31 @@ const TERMINAL_TX_STATUSES = new Set<TransactionStatus>([
   'REFUNDED',
 ]);
 
+type TransactionGroup = 'all' | 'active' | 'completed' | 'closed';
+
+const TRANSACTION_GROUPS: Array<{ value: TransactionGroup; label: string }> = [
+  { value: 'all', label: '전체' },
+  { value: 'active', label: '진행 중' },
+  { value: 'completed', label: '완료' },
+  { value: 'closed', label: '취소·환불' },
+];
+
 export function TransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const role = parseRole(searchParams.get('role'));
-  const status = parseStatus(searchParams.get('status'));
+  const group = parseGroup(searchParams.get('group'));
   const txQuery = useQuery({
-    queryKey: ['transactions', { role, status }],
-    queryFn: () => listTransactions({ role, status, limit: 50 }),
+    queryKey: ['transactions', { role }],
+    queryFn: () => listTransactions({ role, limit: 50 }),
   });
-  const transactions = txQuery.data?.items ?? [];
+  const transactions = filterTransactionsByGroup(txQuery.data?.items ?? [], group);
 
   return (
     <section className="transactions-page" aria-labelledby="transactions-title">
       <header className="page-head page-head--stack">
         <div>
           <p className="section-kicker">거래</p>
-          <h1 id="transactions-title">안전결제 흐름</h1>
+          <h1 id="transactions-title">내 거래</h1>
         </div>
         <div className="segmented-control">
           {[
@@ -96,7 +94,7 @@ export function TransactionsPage() {
             <button
               className={role === item.value ? 'is-selected' : ''}
               key={item.value}
-              onClick={() => setSearchParams(nextParams({ role: item.value, status }))}
+              onClick={() => setSearchParams(nextParams({ role: item.value, group }))}
               type="button"
             >
               {item.label}
@@ -106,21 +104,14 @@ export function TransactionsPage() {
       </header>
 
       <div className="chip-row">
-        <button
-          className={`filter-chip ${!status ? 'is-selected' : ''}`}
-          onClick={() => setSearchParams(nextParams({ role, status: undefined }))}
-          type="button"
-        >
-          모든 상태
-        </button>
-        {TX_STATUSES.map((item) => (
+        {TRANSACTION_GROUPS.map((item) => (
           <button
-            className={`filter-chip ${status === item ? 'is-selected' : ''}`}
-            key={item}
-            onClick={() => setSearchParams(nextParams({ role, status: item }))}
+            className={`filter-chip ${group === item.value ? 'is-selected' : ''}`}
+            key={item.value}
+            onClick={() => setSearchParams(nextParams({ role, group: item.value }))}
             type="button"
           >
-            {transactionStatusLabel(item)}
+            {item.label}
           </button>
         ))}
       </div>
@@ -134,7 +125,7 @@ export function TransactionsPage() {
       ) : null}
       {!txQuery.isLoading && !txQuery.isError && transactions.length === 0 ? (
         <EmptyState
-          description="상품 상세에서 거래 요청을 보내면 안전결제 흐름이 시작됩니다."
+          description="상품 상세에서 거래 요청을 보내면 진행 상황을 이곳에서 확인할 수 있습니다."
           title="표시할 거래가 없습니다"
         />
       ) : null}
@@ -317,6 +308,13 @@ export function TransactionDetailPage() {
 
       <section className="transaction-panel">
         <h2>가능한 작업</h2>
+        {!isTerminal &&
+        role === 'buyer' &&
+        (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (
+          <p className="transaction-panel__note">
+            안전결제 진행 시 Toss 결제 화면으로 이동합니다.
+          </p>
+        ) : null}
         <div className="action-grid">
           {!isTerminal && role === 'seller' && transaction.status === 'REQUESTED' ? (
             <Button
@@ -388,7 +386,8 @@ export function TransactionDetailPage() {
             reviewMutation.mutate();
           }}
         >
-          <h2>거래 후기</h2>
+          <h2>거래가 완료됐습니다</h2>
+          <p>거래 경험을 후기로 남겨보세요.</p>
           <label className="field">
             <span>평점</span>
             <input
@@ -580,21 +579,48 @@ function parseRole(value: string | null): TransactionRole {
   return 'all';
 }
 
-function parseStatus(value: string | null): TransactionStatus | undefined {
-  return TX_STATUSES.find((status) => status === value);
+function parseGroup(value: string | null): TransactionGroup {
+  if (value === 'active' || value === 'completed' || value === 'closed') {
+    return value;
+  }
+
+  return 'all';
 }
 
 function nextParams({
+  group,
   role,
-  status,
 }: {
+  group: TransactionGroup;
   role: string;
-  status?: string;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (role && role !== 'all') params.set('role', role);
-  if (status) params.set('status', status);
+  if (group !== 'all') params.set('group', group);
   return params;
+}
+
+function filterTransactionsByGroup(
+  transactions: Transaction[],
+  group: TransactionGroup,
+): Transaction[] {
+  if (group === 'all') {
+    return transactions;
+  }
+
+  if (group === 'active') {
+    return transactions.filter((transaction) =>
+      !TERMINAL_TX_STATUSES.has(transaction.status),
+    );
+  }
+
+  if (group === 'completed') {
+    return transactions.filter((transaction) => transaction.status === 'COMPLETED');
+  }
+
+  return transactions.filter((transaction) =>
+    transaction.status === 'CANCELLED' || transaction.status === 'REFUNDED',
+  );
 }
 
 function isStatusReached(current: TransactionStatus, target: TransactionStatus): boolean {

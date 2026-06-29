@@ -2,9 +2,12 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
+  Camera,
+  Edit3,
   ExternalLink,
   Heart,
   HeartOff,
+  LogOut,
   Package,
   ShieldCheck,
   UserCog,
@@ -18,29 +21,36 @@ import {
 import { toFriendlyError } from '../api/errors';
 import { listMyFavorites, updateMe } from '../api/users';
 import { useAuth } from '../auth/useAuth';
-import { formatPrice, productStatusLabel, userStatusLabel } from '../lib/format';
+import {
+  formatPrice,
+  formatRelativeTime,
+  productStatusLabel,
+  userStatusLabel,
+} from '../lib/format';
 import { Button } from '../ui/Button';
 import { ImageFallback } from '../ui/ImageFallback';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
 export function MePage() {
-  const { refresh, user } = useAuth();
+  const { logout, syncUser, user } = useAuth();
   const { showToast } = useToast();
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatarUrl ?? null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setBio(user?.bio ?? '');
-    setAvatarUrl(user?.avatarUrl ?? '');
+    setAvatarPreview(user?.avatarUrl ?? null);
   }, [user]);
 
   const updateMutation = useMutation({
     mutationFn: updateMe,
-    onSuccess: async () => {
-      await refresh();
+    onSuccess: (updatedUser) => {
+      syncUser(updatedUser);
+      setIsEditing(false);
       showToast('프로필을 저장했습니다.', 'success');
     },
     onError: (error) => {
@@ -77,7 +87,7 @@ export function MePage() {
       <div className="profile-stats">
         <div>
           <strong>{user.trustScore ?? 0}</strong>
-          <span>신뢰도</span>
+          <span>신뢰도 점수 · 최대 5점</span>
         </div>
         <div>
           <strong>{user.completedTx ?? 0}</strong>
@@ -93,50 +103,93 @@ export function MePage() {
         </Link>
       </div>
 
-      <form
-        className="profile-edit"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          updateMutation.mutate({
-            nickname: nickname.trim(),
-            bio: bio.trim(),
-            avatarUrl: avatarUrl.trim() || undefined,
-          });
-        }}
-      >
-        <h2>
-          <UserCog size={19} />
-          프로필 편집
-        </h2>
-        <label className="field">
-          <span>닉네임</span>
-          <input
-            maxLength={30}
-            minLength={2}
-            onChange={(event) => setNickname(event.target.value)}
-            value={nickname}
-          />
-        </label>
-        <label className="field">
-          <span>소개</span>
-          <textarea
-            maxLength={500}
-            onChange={(event) => setBio(event.target.value)}
-            value={bio ?? ''}
-          />
-        </label>
-        <label className="field">
-          <span>아바타 URL</span>
-          <input
-            onChange={(event) => setAvatarUrl(event.target.value)}
-            placeholder="https://..."
-            value={avatarUrl ?? ''}
-          />
-        </label>
-        <Button loading={updateMutation.isPending} type="submit">
-          저장
+      <section className="profile-view" aria-label="프로필 정보">
+        <div>
+          <h2>소개</h2>
+          <p>{user.bio?.trim() || '아직 작성한 소개가 없습니다.'}</p>
+        </div>
+        <Button
+          aria-expanded={isEditing}
+          aria-controls="profile-edit-form"
+          className="profile-edit-toggle"
+          icon={<Edit3 size={17} />}
+          onClick={() => setIsEditing((current) => !current)}
+          type="button"
+          variant="secondary"
+        >
+          {isEditing ? '편집 닫기' : '프로필 수정'}
         </Button>
-      </form>
+      </section>
+
+      {isEditing ? (
+        <form
+          className="profile-edit"
+          id="profile-edit-form"
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            updateMutation.mutate({
+              nickname: nickname.trim(),
+              bio: bio.trim(),
+              avatarUrl: user.avatarUrl ?? undefined,
+            });
+          }}
+        >
+          <h2>
+            <UserCog size={19} />
+            프로필 편집
+          </h2>
+          <label className="field">
+            <span>닉네임</span>
+            <input
+              maxLength={30}
+              minLength={2}
+              onChange={(event) => setNickname(event.target.value)}
+              value={nickname}
+            />
+          </label>
+          <label className="field">
+            <span>소개</span>
+            <textarea
+              maxLength={500}
+              onChange={(event) => setBio(event.target.value)}
+              value={bio ?? ''}
+            />
+          </label>
+          <label className="profile-photo-picker">
+            <span>프로필 사진</span>
+            <input
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                setAvatarPreview(URL.createObjectURL(file));
+                showToast('프로필 사진 업로드 저장은 준비 중입니다.', 'info');
+              }}
+              type="file"
+            />
+            <span className="profile-photo-picker__preview">
+              {avatarPreview ? <img alt="" src={avatarPreview} /> : <Camera size={20} />}
+            </span>
+            <small>사진 저장은 다음 업데이트에서 지원됩니다.</small>
+          </label>
+          <Button loading={updateMutation.isPending} type="submit">
+            저장
+          </Button>
+        </form>
+      ) : null}
+
+      <section className="profile-account-actions" aria-label="계정 작업">
+        <Button
+          icon={<LogOut size={17} />}
+          onClick={async () => {
+            await logout();
+            showToast('로그아웃했습니다.', 'success');
+          }}
+          variant="secondary"
+        >
+          로그아웃
+        </Button>
+      </section>
     </section>
   );
 }
@@ -235,7 +288,7 @@ export function FavoritesPage() {
       ) : null}
       {!favoritesQuery.isLoading && !favoritesQuery.isError && favorites.length === 0 ? (
         <EmptyState
-          description="관심 있는 상품을 찜하면 이곳에서 한 번에 볼 수 있습니다."
+          description="마음에 드는 상품의 찜 버튼을 누르면 이곳에서 한 번에 볼 수 있습니다."
           title="아직 찜한 상품이 없습니다"
         />
       ) : null}
@@ -274,10 +327,11 @@ function MyProductCard({ product }: { product: Product }) {
       </Link>
       <div className="photo-shelf__meta">
         <span>{productStatusLabel(product.status)}</span>
+        <span>{product.region ?? '동네 미정'} · {formatRelativeTime(product.createdAt)}</span>
         {isPubliclyVisible ? (
           <Link className="button button--quiet" to={`/products/${product.id}`}>
             <ExternalLink size={15} />
-            <span>공개 보기</span>
+            <span>상품 페이지 보기</span>
           </Link>
         ) : (
           <small>숨김 상태 · 편집만 가능</small>
@@ -310,6 +364,7 @@ function FavoriteProductCard({
       </Link>
       <div className="photo-shelf__meta">
         <span>{productStatusLabel(product.status)}</span>
+        <span>{product.region ?? '동네 미정'} · {formatRelativeTime(product.createdAt)}</span>
         <Button
           disabled={loading}
           icon={<HeartOff size={15} />}

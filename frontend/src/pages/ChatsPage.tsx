@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import {
   ArrowLeft,
-  Ban,
+  ChevronRight,
   Image as ImageIcon,
   MessageCircle,
   MoreVertical,
@@ -69,7 +69,7 @@ export function ChatsPage() {
       <header className="page-head">
         <div>
           <p className="section-kicker">채팅</p>
-          <h1 id="chats-title">거래 대화</h1>
+          <h1 id="chats-title">메시지</h1>
         </div>
       </header>
 
@@ -296,11 +296,11 @@ export function ChatRoomPage() {
           <div className="chat-room__person">
             <strong>{counterpart?.nickname ?? '상대방'}</strong>
             <span>
-              {socketState === 'connected' ? '실시간 연결됨' : '메시지는 서버로 안전하게 전송됩니다'}
+              {socketState === 'blocked' ? '메시지 전송 제한' : '안전하게 메시지 중'}
             </span>
           </div>
-          <IconButton label="상대방 차단" onClick={() => setBlockOpen(true)}>
-            <Ban size={18} />
+          <IconButton label="상대방 관리" onClick={() => setBlockOpen(true)}>
+            <MoreVertical size={18} />
           </IconButton>
         </header>
 
@@ -316,7 +316,12 @@ export function ChatRoomPage() {
               {formatPrice(chat.product.price)}원 · {productStatusLabel(chat.product.status)}
             </small>
           </span>
+          <ChevronRight aria-hidden="true" size={18} />
         </Link>
+
+        <div className="chat-safety-note">
+          동네결 안전거래로 결제하면 거래 상태를 함께 확인할 수 있습니다.
+        </div>
 
         {socketState === 'blocked' ? (
           <div className="socket-warning">

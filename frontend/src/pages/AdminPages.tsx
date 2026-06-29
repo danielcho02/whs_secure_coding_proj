@@ -26,6 +26,7 @@ import {
 import { toFriendlyError } from '../api/errors';
 import type { ReportStatus } from '../api/reports';
 import {
+  adminActionLabel,
   formatDateTime,
   formatPrice,
   productStatusLabel,
@@ -147,6 +148,9 @@ export function AdminProductsPage() {
       <AdminSearch value={q} onChange={setQ} />
       <div className="admin-split">
         <div className="admin-result-list">
+          {!productsQuery.isLoading && products.length === 0 ? (
+            <EmptyState title="검색 결과가 없습니다" description="검색어를 줄이거나 다른 상품명으로 찾아보세요." />
+          ) : null}
           {products.map((product) => (
             <button
               className={active?.id === product.id ? 'is-selected' : ''}
@@ -197,6 +201,9 @@ export function AdminUsersPage() {
       <AdminSearch value={q} onChange={setQ} />
       <div className="admin-split">
         <div className="admin-result-list">
+          {!usersQuery.isLoading && users.length === 0 ? (
+            <EmptyState title="검색 결과가 없습니다" description="닉네임이나 상태 검색어를 다시 확인해주세요." />
+          ) : null}
           {users.map((user) => (
             <button
               className={active?.id === user.id ? 'is-selected' : ''}
@@ -206,7 +213,7 @@ export function AdminUsersPage() {
             >
               <strong>{user.nickname}</strong>
               <span>
-                {user.role} · {userStatusLabel(user.status)}
+                {adminRoleLabel(user.role)} · {userStatusLabel(user.status)}
               </span>
             </button>
           ))}
@@ -438,7 +445,7 @@ function AdminUserDetail({
       <dl>
         <div>
           <dt>권한</dt>
-          <dd>{user.role}</dd>
+          <dd>{adminRoleLabel(user.role)}</dd>
         </div>
         <div>
           <dt>신뢰</dt>
@@ -569,9 +576,9 @@ function AdminLogTimeline({
               <span>{log.actor.nickname}</span>
               <time>{formatDateTime(log.createdAt)}</time>
             </div>
-            <h2>{log.action}</h2>
+            <h2>{adminActionLabel(log.action)}</h2>
             <p>
-              {log.targetType} · {log.targetId}
+              {adminTargetLabel(log.targetType)} · {shortId(log.targetId)}
             </p>
             {log.reason ? <em>{log.reason}</em> : null}
           </div>
@@ -603,4 +610,23 @@ function actionTitle(action: AdminAction | null): string {
   if (action.type === 'restoreProduct') return '상품 복구';
   if (action.type === 'suspendUser') return '사용자 정지';
   return '사용자 복구';
+}
+
+function adminRoleLabel(role: string): string {
+  return role === 'ADMIN' ? '관리자' : '회원';
+}
+
+function adminTargetLabel(targetType: string): string {
+  const labels: Record<string, string> = {
+    PRODUCT: '상품',
+    USER: '사용자',
+    REPORT: '신고',
+    CHAT: '채팅',
+  };
+
+  return labels[targetType] ?? '대상';
+}
+
+function shortId(id: string): string {
+  return id.length > 8 ? `${id.slice(0, 8)}...` : id;
 }

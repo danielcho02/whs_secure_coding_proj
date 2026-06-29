@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LockKeyhole, Mail, UserRound } from 'lucide-react';
+import { CheckCircle2, LockKeyhole, Mail, MessageCircle, UserRound } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import { toFriendlyError } from '../api/errors';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -15,6 +15,7 @@ export function RegisterPage() {
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const passwordRules = getPasswordRules(password);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,7 +37,7 @@ export function RegisterPage() {
       <section className="auth-panel auth-panel--register" aria-labelledby="register-title">
         <div className="auth-brand">
           <BrandLogo size="lg" tagline="동네결 시작하기" />
-          <h1 id="register-title">거래 정보는 선명하게, 계정은 안전하게.</h1>
+          <h1 id="register-title">동네결을 시작해보세요.</h1>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -48,7 +49,7 @@ export function RegisterPage() {
                 autoComplete="email"
                 inputMode="email"
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                placeholder="이메일 주소"
                 required
                 type="email"
                 value={email}
@@ -65,7 +66,7 @@ export function RegisterPage() {
                 maxLength={30}
                 minLength={2}
                 onChange={(event) => setNickname(event.target.value)}
-                placeholder="동네에서 보일 이름"
+                placeholder="예: 마포구 전자왕"
                 required
                 type="text"
                 value={nickname}
@@ -87,12 +88,30 @@ export function RegisterPage() {
                 value={password}
               />
             </span>
+            <ul className="password-rules" aria-label="비밀번호 조건">
+              {passwordRules.map((rule) => (
+                <li className={rule.valid ? 'is-valid' : ''} key={rule.label}>
+                  <CheckCircle2 size={14} />
+                  <span>{rule.label}</span>
+                </li>
+              ))}
+            </ul>
           </label>
 
           <Button className="auth-form__submit" loading={isSubmitting} type="submit">
-            가입하고 둘러보기
+            가입하기
           </Button>
         </form>
+
+        <div className="auth-social">
+          <Button
+            icon={<MessageCircle size={17} />}
+            onClick={() => showToast('카카오 로그인은 준비 중입니다.', 'info')}
+            variant="secondary"
+          >
+            카카오로 계속하기
+          </Button>
+        </div>
 
         <p className="auth-switch">
           이미 계정이 있나요? <Link to="/login">로그인</Link>
@@ -100,4 +119,12 @@ export function RegisterPage() {
       </section>
     </main>
   );
+}
+
+function getPasswordRules(password: string): Array<{ label: string; valid: boolean }> {
+  return [
+    { label: '8자 이상', valid: password.length >= 8 },
+    { label: '대문자와 소문자 포함', valid: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+    { label: '숫자와 특수문자 포함', valid: /\d/.test(password) && /[^A-Za-z0-9]/.test(password) },
+  ];
 }

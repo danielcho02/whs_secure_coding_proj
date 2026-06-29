@@ -1,5 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, ChevronRight } from 'lucide-react';
+import {
+  Bell,
+  ChevronRight,
+  CreditCard,
+  Flag,
+  MessageCircle,
+  ShieldAlert,
+} from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listNotifications,
@@ -9,7 +16,11 @@ import {
 } from '../api/notifications';
 import { toFriendlyError } from '../api/errors';
 import { useAuth } from '../auth/useAuth';
-import { formatRelativeTime, notificationTypeLabel } from '../lib/format';
+import {
+  formatRelativeTime,
+  notificationTitle,
+  notificationTypeLabel,
+} from '../lib/format';
 import { getNotificationTargetPath } from '../lib/navigation';
 import { Button } from '../ui/Button';
 import { NotificationSkeleton } from '../ui/Skeleton';
@@ -90,7 +101,7 @@ export function NotificationsPage() {
       <header className="page-head">
         <div>
           <p className="section-kicker">알림</p>
-          <h1 id="notifications-title">놓치지 말아야 할 소식</h1>
+          <h1 id="notifications-title">내 알림</h1>
         </div>
         <div className="segmented-control">
           <button
@@ -133,6 +144,7 @@ export function NotificationsPage() {
         <div className="notification-list">
           {notifications.map((notification) => {
             const targetPath = getNotificationTargetPath(notification.target, { isAdmin });
+            const NotificationIcon = getNotificationIcon(notification.type);
 
             return (
               <article
@@ -155,14 +167,14 @@ export function NotificationsPage() {
                 tabIndex={0}
               >
                 <div className="notification-row__icon" aria-hidden="true">
-                  <Bell size={18} />
+                  <NotificationIcon size={18} />
                 </div>
                 <div className="notification-row__body">
                   <div className="notification-row__meta">
                     <span>{notificationTypeLabel(notification.type)}</span>
                     <time>{formatRelativeTime(notification.createdAt)}</time>
                   </div>
-                  <h2>{notification.title}</h2>
+                  <h2>{notificationTitle(notification.type, notification.title)}</h2>
                   <p>{notification.body || notification.message}</p>
                 </div>
                 <div className="notification-row__actions">
@@ -202,4 +214,12 @@ export function NotificationsPage() {
       ) : null}
     </section>
   );
+}
+
+function getNotificationIcon(type: string) {
+  if (type === 'CHAT') return MessageCircle;
+  if (type === 'TRANSACTION' || type === 'TX') return CreditCard;
+  if (type === 'REPORT') return Flag;
+  if (type === 'ADMIN_REPORT') return ShieldAlert;
+  return Bell;
 }

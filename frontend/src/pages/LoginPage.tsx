@@ -1,6 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LockKeyhole, Mail, ShieldCheck, Store, UserRound, UserX } from 'lucide-react';
+import {
+  LockKeyhole,
+  Mail,
+  MessageCircle,
+  ShieldCheck,
+  Store,
+  UserRound,
+  UserX,
+} from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import { toFriendlyError } from '../api/errors';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -21,6 +29,7 @@ export function LoginPage() {
   const from = (location.state as LocationState | null)?.from?.pathname ?? '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const showDemoLogin = import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true';
@@ -31,13 +40,16 @@ export function LoginPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
+    setFormError(null);
 
     try {
       await login({ email, password });
       showToast('동네결에 다시 오신 걸 환영합니다.', 'success');
       navigate(from, { replace: true });
     } catch (error) {
-      showToast(getLoginErrorMessage(error), 'error');
+      const message = getLoginErrorMessage(error, { email });
+      setFormError(message);
+      showToast(message, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -45,23 +57,21 @@ export function LoginPage() {
 
   const handleDemoLogin = async (demoEmail: string) => {
     if (!canUseDemoLogin) {
-      showToast('시연 비밀번호가 설정되지 않았습니다.', 'info');
+      showToast('체험 계정 비밀번호가 설정되지 않았습니다.', 'info');
       return;
     }
 
     setDemoLoading(demoEmail);
+    setFormError(null);
 
     try {
       await login({ email: demoEmail, password: demoPassword });
-      showToast('시연 계정으로 로그인했습니다.', 'success');
+      showToast('체험 계정으로 로그인했습니다.', 'success');
       navigate(from, { replace: true });
     } catch (error) {
-      showToast(
-        getLoginErrorMessage(error, {
-          suspendedDemo: demoEmail === 'suspended@example.com',
-        }),
-        'error',
-      );
+      const message = getLoginErrorMessage(error, { email: demoEmail });
+      setFormError(message);
+      showToast(message, 'error');
     } finally {
       setDemoLoading(null);
     }
@@ -86,8 +96,11 @@ export function LoginPage() {
               <input
                 autoComplete="email"
                 inputMode="email"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setFormError(null);
+                }}
+                placeholder="이메일 주소"
                 required
                 type="email"
                 value={email}
@@ -101,7 +114,10 @@ export function LoginPage() {
               <LockKeyhole size={18} />
               <input
                 autoComplete="current-password"
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setFormError(null);
+                }}
                 placeholder="8자 이상"
                 required
                 type="password"
@@ -110,19 +126,39 @@ export function LoginPage() {
             </span>
           </label>
 
+          {formError ? (
+            <p className="auth-form__error" role="alert">
+              {formError}
+            </p>
+          ) : null}
+
           <Button className="auth-form__submit" loading={isSubmitting} type="submit">
             로그인
           </Button>
         </form>
 
+        <div className="auth-secondary-actions">
+          <Link to="/forgot-password">비밀번호를 잊으셨나요?</Link>
+        </div>
+
+        <div className="auth-social">
+          <Button
+            icon={<MessageCircle size={17} />}
+            onClick={() => showToast('카카오 로그인은 준비 중입니다.', 'info')}
+            variant="secondary"
+          >
+            카카오로 계속하기
+          </Button>
+        </div>
+
         {showDemoLogin ? (
-          <section className="demo-login" aria-label="시연 계정 로그인">
+          <section className="demo-login" aria-label="체험 계정 로그인">
             <div className="demo-login__head">
-              <span>시연 계정으로 빠르게 확인</span>
+              <span>체험 계정으로 빠르게 확인</span>
               <small>
                 {canUseDemoLogin
-                  ? '시연 계정으로 실제 흐름을 확인할 수 있어요'
-                  : '시연 비밀번호가 설정되지 않았습니다'}
+                  ? '구매자와 판매자 흐름을 바로 확인할 수 있어요'
+                  : '체험 계정 비밀번호가 설정되지 않았습니다'}
               </small>
             </div>
             <div className="demo-login__grid">
@@ -157,7 +193,7 @@ export function LoginPage() {
 
 function getLoginErrorMessage(
   error: unknown,
-  options: { suspendedDemo?: boolean } = {},
+  options: { email?: string } = {},
 ): string {
   const friendly = toFriendlyError(error);
 
@@ -169,9 +205,15 @@ function getLoginErrorMessage(
     return '로그인 시도가 많습니다. 잠시 후 다시 시도해주세요.';
   }
 
-  if (options.suspendedDemo) {
-    return '이 시연 계정은 이용 제한 상태라 로그인되지 않습니다.';
+  if (options.email && isRestrictedAccountEmail(options.email)) {
+    return '이용이 제한된 계정입니다.';
   }
 
-  return '이메일 또는 비밀번호가 올바르지 않습니다.';
+  return '이메일 또는 비밀번호를 확인해주세요.';
+}
+
+function isRestrictedAccountEmail(email: string): boolean {
+  return ['suspended@example.com', 'banned@example.com'].includes(
+    email.trim().toLowerCase(),
+  );
 }

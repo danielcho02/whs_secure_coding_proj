@@ -6,6 +6,7 @@ import {
   MessageCircle,
   Package,
   PackagePlus,
+  ScrollText,
   ShieldCheck,
   User,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const primaryNav = [
   { to: '/favorites', label: '찜', icon: Heart },
   { to: '/chats', label: '채팅', icon: MessageCircle },
   { to: '/transactions', label: '거래', icon: Package },
+  { to: '/me/products', label: '내 판매글', icon: ScrollText },
   { to: '/me', label: '마이', icon: User },
 ];
 
@@ -50,7 +52,7 @@ export function AppShell() {
         </button>
 
         <nav className="desktop-rail__nav">
-          {primaryNav.map((item) => (
+          {primaryNav.slice(0, 3).map((item) => (
             <NavLink className="nav-item" end={item.to === '/'} key={item.to} to={item.to}>
               <item.icon size={20} />
               <span>{item.label}</span>
@@ -63,10 +65,16 @@ export function AppShell() {
             </span>
             <span>알림</span>
           </NavLink>
+          {primaryNav.slice(3).map((item) => (
+            <NavLink className="nav-item" key={item.to} to={item.to}>
+              <item.icon size={20} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
           {status === 'authenticated' ? (
             <NavLink className="nav-item nav-item--sell" to="/products/new">
               <PackagePlus size={20} />
-              <span>판매글</span>
+              <span>판매하기</span>
             </NavLink>
           ) : null}
           {isAdmin ? (
