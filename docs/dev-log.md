@@ -1,5 +1,13 @@
 # 개발 로그
 
+## 2026-06-29 / branch: fix/frontend-browser-qa-polish
+
+### 브라우저 QA polish
+
+- 브라우저 QA에서 발견한 이미지 fallback, toast 위치, 한국어 줄바꿈, 로그인 실패 안내를 수정했다.
+- 상품/채팅/거래/관리자 썸네일은 공통 fallback UI를 사용하고, 실패한 이미지의 broken image/alt 텍스트가 화면에 노출되지 않게 보완했다.
+- 모바일 하단 탭바, 상품 상세 sticky CTA, toast 간격을 safe-area 기준으로 조정했다.
+
 ## 2026-06-29 / branch: feat/frontend-marketplace-ui
 
 ### 프론트 최종 리뷰 후 degraded UI 제거용 API 보완
@@ -270,3 +278,12 @@ npx prisma migrate dev --name add-review-author-unique
 npm run db:seed
 npm run start
 ```
+
+## 2026-06-29 - Frontend visual system redesign
+
+- Claude read-only 디자인 진단 결과, 기존 UI의 과한 radius, shadow, gradient, pill-heavy controls, generic card/dashboard 느낌을 개선하기로 결정.
+- frontend visual system을 더 실제 중고거래 서비스에 가깝게 재정리.
+- radius scale을 낮추고 large shadow 사용을 줄임.
+- 모바일 tabbar, 상품 feed, sticky CTA, 관리자 화면을 더 flat하고 dense한 구조로 조정.
+- 기능/API/security flow는 유지.
+- 검증: frontend lint/build/security grep 통과.

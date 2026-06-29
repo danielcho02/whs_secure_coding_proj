@@ -36,6 +36,7 @@ import {
 import { BrandLogo } from '../ui/BrandLogo';
 import { Button } from '../ui/Button';
 import { Drawer } from '../ui/Drawer';
+import { ImageFallback } from '../ui/ImageFallback';
 import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
@@ -153,10 +154,19 @@ export function AdminProductsPage() {
               onClick={() => setSelected(product)}
               type="button"
             >
-              <strong>{product.title}</strong>
-              <span>
-                {formatPrice(product.price)}원 · {productStatusLabel(product.status)}
-              </span>
+              <ImageFallback
+                alt={`${product.title} 상품 사진`}
+                category={product.category}
+                className="admin-product-thumb"
+                src={product.thumbnailUrl}
+                title={product.title}
+              />
+              <div className="admin-result-list__copy">
+                <strong>{product.title}</strong>
+                <span>
+                  {formatPrice(product.price)}원 · {productStatusLabel(product.status)}
+                </span>
+              </div>
             </button>
           ))}
         </div>
@@ -359,10 +369,21 @@ function AdminProductDetail({
 
   return (
     <section className="admin-detail">
-      <span className={`status-pill ${product.isHidden ? 'status-rejected' : 'status-resolved'}`}>
-        {product.isHidden ? '숨김' : '노출'}
-      </span>
-      <h2>{product.title}</h2>
+      <div className="admin-product-summary">
+        <ImageFallback
+          alt={`${product.title} 상품 사진`}
+          category={product.category}
+          className="admin-product-thumb admin-product-thumb--large"
+          src={product.thumbnailUrl}
+          title={product.title}
+        />
+        <div>
+          <span className={`status-pill ${product.isHidden ? 'status-rejected' : 'status-resolved'}`}>
+            {product.isHidden ? '숨김' : '노출'}
+          </span>
+          <h2>{product.title}</h2>
+        </div>
+      </div>
       <p>{product.description ?? '설명 없음'}</p>
       <dl>
         <div>

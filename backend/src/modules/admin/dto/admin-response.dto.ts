@@ -30,6 +30,7 @@ export interface AdminProductResponse {
   region?: string | null;
   status: ProductStatus;
   isHidden: boolean;
+  thumbnailUrl: string | null;
   createdAt: Date;
   seller?: AdminPublicUser;
 }

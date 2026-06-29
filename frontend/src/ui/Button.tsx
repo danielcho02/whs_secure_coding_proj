@@ -20,7 +20,8 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`button button--${variant} ${className}`.trim()}
+      aria-busy={loading || undefined}
+      className={`button button--${variant} ${loading ? 'is-loading' : ''} ${className}`.trim()}
       disabled={disabled || loading}
       type={type}
       {...props}
