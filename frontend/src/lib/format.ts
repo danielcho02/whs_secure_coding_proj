@@ -63,7 +63,7 @@ export function transactionStatusLabel(status: string): string {
     RESERVED: '예약됨',
     PAYMENT_PENDING: '결제 대기',
     PAID: '결제 완료',
-    SHIPPING: '전달 중',
+    SHIPPING: '전달 준비',
     COMPLETED: '거래 완료',
     CANCELLED: '취소됨',
     REFUNDED: '환불됨',
@@ -174,9 +174,13 @@ export function notificationTitle(type: string, fallback: string): string {
 }
 
 export function trustSummary(completedTx: number, trustScore: number): string {
-  if (completedTx > 0) {
+  if (completedTx >= 2) {
     return `안전거래 ${completedTx}건`;
   }
 
   return `신뢰도 ${trustScore}점`;
+}
+
+export function trustDetail(completedTx: number, trustScore: number): string {
+  return `신뢰도 ${trustScore}점 · 완료 거래 ${completedTx}건`;
 }

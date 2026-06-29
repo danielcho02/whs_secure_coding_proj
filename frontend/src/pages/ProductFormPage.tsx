@@ -42,7 +42,7 @@ type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>;
 
 const EMPTY_FORM: ProductFormState = {
   title: '',
-  category: '디지털',
+  category: '',
   price: '',
   region: '',
   description: '',
@@ -216,7 +216,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
             type="file"
           />
           <ImagePlus size={22} />
-          <span>사진 선택</span>
+          <span>클릭해서 사진 추가</span>
         </label>
 
         <div className="photo-preview-grid">
@@ -267,6 +267,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
             onChange={(event) => handleChange('category', event.target.value)}
             value={form.category}
           >
+            <option value="">카테고리를 선택해주세요</option>
             {CATEGORIES.map((category) => (
               <option key={category} value={category}>
                 {category}
@@ -333,7 +334,7 @@ export function ProductFormPage({ mode }: { mode: 'create' | 'edit' }) {
           ) : null}
         </label>
         <p className="editor-policy-note">
-          주류, 의약품, 개인정보, 위조 상품처럼 거래가 제한된 품목은 등록할 수 없습니다.
+          거래 제한 품목: 주류, 의약품, 개인정보, 위조 상품은 등록할 수 없습니다.
         </p>
       </section>
 

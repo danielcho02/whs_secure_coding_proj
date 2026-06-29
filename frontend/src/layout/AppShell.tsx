@@ -52,7 +52,7 @@ export function AppShell() {
         </button>
 
         <nav className="desktop-rail__nav">
-          {primaryNav.map((item) => (
+          {primaryNav.slice(0, 3).map((item) => (
             <NavLink className="nav-item" end={item.to === '/'} key={item.to} to={item.to}>
               <item.icon size={20} />
               <span>{item.label}</span>
@@ -65,6 +65,12 @@ export function AppShell() {
             </span>
             <span>알림</span>
           </NavLink>
+          {primaryNav.slice(3).map((item) => (
+            <NavLink className="nav-item" key={item.to} to={item.to}>
+              <item.icon size={20} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
           {status === 'authenticated' ? (
             <NavLink className="nav-item nav-item--sell" to="/products/new">
               <PackagePlus size={20} />

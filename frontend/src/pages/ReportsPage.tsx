@@ -54,7 +54,7 @@ export function ReportsPage() {
                 <h2>{report.reason}</h2>
                 {report.description ? <p>{report.description}</p> : null}
                 <strong>{reportStatusLabel(report.status)}</strong>
-                {report.adminNote ? <em>{report.adminNote}</em> : null}
+                {report.adminNote ? <em>{publicReportNote(report.status)}</em> : null}
               </div>
             </article>
           ))}
@@ -62,4 +62,12 @@ export function ReportsPage() {
       ) : null}
     </section>
   );
+}
+
+function publicReportNote(status: string): string {
+  if (status === 'REVIEWING') {
+    return '신고 내용을 검토 중입니다.';
+  }
+
+  return '신고를 검토한 결과, 서비스 정책에 따라 처리되었습니다.';
 }

@@ -101,7 +101,7 @@ export function NotificationsPage() {
       <header className="page-head">
         <div>
           <p className="section-kicker">알림</p>
-          <h1 id="notifications-title">놓치지 말아야 할 소식</h1>
+          <h1 id="notifications-title">내 알림</h1>
         </div>
         <div className="segmented-control">
           <button

@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Heart,
   HeartOff,
+  LogOut,
   Package,
   ShieldCheck,
   UserCog,
@@ -32,7 +33,7 @@ import { EmptyState, ErrorState } from '../ui/StateViews';
 import { useToast } from '../ui/useToast';
 
 export function MePage() {
-  const { refresh, user } = useAuth();
+  const { logout, syncUser, user } = useAuth();
   const { showToast } = useToast();
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -47,8 +48,8 @@ export function MePage() {
 
   const updateMutation = useMutation({
     mutationFn: updateMe,
-    onSuccess: async () => {
-      await refresh();
+    onSuccess: (updatedUser) => {
+      syncUser(updatedUser);
       setIsEditing(false);
       showToast('프로필을 저장했습니다.', 'success');
     },
@@ -86,7 +87,7 @@ export function MePage() {
       <div className="profile-stats">
         <div>
           <strong>{user.trustScore ?? 0}</strong>
-          <span>신뢰도 점수</span>
+          <span>신뢰도 점수 · 최대 5점</span>
         </div>
         <div>
           <strong>{user.completedTx ?? 0}</strong>
@@ -108,8 +109,12 @@ export function MePage() {
           <p>{user.bio?.trim() || '아직 작성한 소개가 없습니다.'}</p>
         </div>
         <Button
+          aria-expanded={isEditing}
+          aria-controls="profile-edit-form"
+          className="profile-edit-toggle"
           icon={<Edit3 size={17} />}
           onClick={() => setIsEditing((current) => !current)}
+          type="button"
           variant="secondary"
         >
           {isEditing ? '편집 닫기' : '프로필 수정'}
@@ -119,6 +124,7 @@ export function MePage() {
       {isEditing ? (
         <form
           className="profile-edit"
+          id="profile-edit-form"
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             updateMutation.mutate({
@@ -171,6 +177,19 @@ export function MePage() {
           </Button>
         </form>
       ) : null}
+
+      <section className="profile-account-actions" aria-label="계정 작업">
+        <Button
+          icon={<LogOut size={17} />}
+          onClick={async () => {
+            await logout();
+            showToast('로그아웃했습니다.', 'success');
+          }}
+          variant="secondary"
+        >
+          로그아웃
+        </Button>
+      </section>
     </section>
   );
 }

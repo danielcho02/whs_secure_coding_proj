@@ -16,9 +16,14 @@ const BCRYPT_SALT_ROUNDS = 10;
 const SEED_BASE_TIME = new Date('2026-06-28T00:00:00.000Z');
 const LEGACY_TITLE_PREFIX = ['D', 'ev '].join('');
 const REMOVED_ADMIN_LOG_ACTION = ['SEED', 'ADMIN', 'LOG'].join('_');
+const REMOVED_QA_PRODUCT_TITLE = ['테스트 ', '상품입니다'].join('');
+const REMOVED_QA_MESSAGE_SNIPPET = ['테스트 ', '메시지'].join('');
+const REMOVED_CTRL_ENTER_SNIPPET = ['Ctrl', 'Enter'].join('+');
+const REMOVED_JBL_TYPO_TITLE = ['JBL Charge 5 블루투스 스피', '카'].join('');
 
 async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash(DEV_PASSWORD, BCRYPT_SALT_ROUNDS);
+  await removeQaResidue();
 
   const seller = await upsertUser({
     email: 'seller@example.com',
@@ -212,12 +217,12 @@ async function main(): Promise<void> {
   const refundedProduct = await upsertProduct({
     sellerId: secondSeller.id,
     title: '소니 플레이스테이션 5 디지털 에디션',
-    description: '본체와 듀얼센스 1개 구성입니다. 거래 조건이 맞지 않아 환불 처리된 이력이 있습니다.',
+    description: '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
     price: 260000,
     category: '게임/취미',
     region: '광주 북구',
     status: ProductStatus.ON_SALE,
-    legacyTitles: [legacyTitle('REFUNDED 게임기')],
+    legacyTitles: [legacyTitle('REFUNDED 게임기'), REMOVED_QA_PRODUCT_TITLE],
   });
 
   await prisma.adminLog.deleteMany({ where: { action: REMOVED_ADMIN_LOG_ACTION } });
@@ -555,7 +560,7 @@ async function main(): Promise<void> {
     description: '안전결제 사용 여부를 확인하기 위해 신고했습니다.',
     status: ReportStatus.RESOLVED,
     adminId: admin.id,
-    adminNote: '위험 표현은 확인되지 않아 안내 메시지를 발송하고 종결했습니다.',
+    adminNote: '신고를 검토한 결과, 서비스 정책에 따라 처리되었습니다.',
     reviewedAt: seedTime(21),
   });
 
@@ -723,6 +728,8 @@ async function upsertUser(input: UpsertUserInput) {
     status: input.status,
     trustScore: input.trustScore ?? 0,
     completedTx: input.completedTx ?? 0,
+    loginFails: 0,
+    lockedUntil: null,
   };
 
   return prisma.user.upsert({
@@ -733,6 +740,56 @@ async function upsertUser(input: UpsertUserInput) {
       ...data,
     },
   });
+}
+
+async function removeQaResidue(): Promise<void> {
+  await prisma.chatMessage.deleteMany({
+    where: {
+      OR: [
+        { content: { contains: REMOVED_CTRL_ENTER_SNIPPET } },
+        { content: { contains: REMOVED_QA_MESSAGE_SNIPPET } },
+      ],
+    },
+  });
+
+  const qaProducts = await prisma.product.findMany({
+    where: {
+      OR: [
+        { title: REMOVED_QA_PRODUCT_TITLE },
+        { title: REMOVED_JBL_TYPO_TITLE },
+      ],
+    },
+    select: { id: true, title: true },
+  });
+
+  for (const product of qaProducts) {
+    if (product.title === REMOVED_JBL_TYPO_TITLE) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { title: 'JBL Charge 5 블루투스 스피커' },
+      });
+      continue;
+    }
+
+    await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        title: '소니 플레이스테이션 5 디지털 에디션',
+        description: '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
+        price: 260000,
+        category: '게임/취미',
+        region: '광주 북구',
+        status: ProductStatus.ON_SALE,
+        isHidden: false,
+      },
+    });
+    await replaceProductImages(product.id, [
+      {
+        url: 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=900&q=80',
+        order: 0,
+      },
+    ]);
+  }
 }
 
 interface UpsertProductInput {

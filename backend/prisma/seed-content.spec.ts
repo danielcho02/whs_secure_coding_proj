@@ -34,6 +34,10 @@ const forbiddenUserFacingSeedSnippets = [
   'seed 확인용',
   'secure-keyword-alpha',
   'Ctrl+Enter',
+  '테스트 상품입니다',
+  '테스트 메시지',
+  '환불 처리된 이력',
+  '위험 표현은 확인되지 않아 안내 메시지를 발송하고 종결했습니다.',
   'SEED_ADMIN_LOG',
   '[DEV]',
   'dev_seed',
@@ -46,5 +50,10 @@ describe('seed content', () => {
         seedSource.includes(snippet),
       ),
     ).toEqual([]);
+  });
+
+  it('resets seeded account login lock state so demo credentials remain usable', () => {
+    expect(seedSource).toContain('loginFails: 0');
+    expect(seedSource).toContain('lockedUntil: null');
   });
 });

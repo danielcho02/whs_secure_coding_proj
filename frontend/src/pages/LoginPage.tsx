@@ -144,7 +144,7 @@ export function LoginPage() {
         <div className="auth-social">
           <Button
             icon={<MessageCircle size={17} />}
-            onClick={() => showToast('소셜 로그인은 준비 중입니다.', 'info')}
+            onClick={() => showToast('카카오 로그인은 준비 중입니다.', 'info')}
             variant="secondary"
           >
             카카오로 계속하기

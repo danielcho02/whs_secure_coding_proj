@@ -319,41 +319,46 @@ function ProductTile({
   product,
 }: ProductTileProps) {
   const thumbnail = product.images[0]?.url ?? null;
+  const detailPath = `/products/${product.id}`;
 
   return (
     <article className={`product-tile product-tile--${statusClass(product.status)}`}>
-      <Link className="product-tile__image-link" to={`/products/${product.id}`}>
-        <ImageFallback
-          alt={`${product.title} 상품 사진`}
-          category={product.category}
-          className="product-tile__image"
-          src={thumbnail}
-          title={product.title}
-        />
-        <span className={`status-chip status-chip--${statusClass(product.status)}`}>
-          {productStatusLabel(product.status)}
+      <Link
+        aria-label={`${product.title} 상세 보기`}
+        className="product-tile__main"
+        to={detailPath}
+      >
+        <span className="product-tile__image-frame">
+          <ImageFallback
+            alt={`${product.title} 상품 사진`}
+            category={product.category}
+            className="product-tile__image"
+            src={thumbnail}
+            title={product.title}
+          />
+          <span className={`status-chip status-chip--${statusClass(product.status)}`}>
+            {productStatusLabel(product.status)}
+          </span>
+        </span>
+
+        <span className="product-tile__content">
+          <span className="product-tile__title">{product.title}</span>
+          <span className="product-tile__price">{formatPrice(product.price)}원</span>
+          <span className="product-tile__meta">
+            <span>
+              <MapPin size={14} />
+              {product.region ?? '동네 미정'}
+            </span>
+            <span>{formatRelativeTime(product.createdAt)}</span>
+          </span>
+          <span className="product-tile__seller">
+            <span>{product.seller.nickname}</span>
+            <span>
+              {trustSummary(product.seller.completedTx, product.seller.trustScore)}
+            </span>
+          </span>
         </span>
       </Link>
-
-      <div className="product-tile__content">
-        <Link className="product-tile__title" to={`/products/${product.id}`}>
-          {product.title}
-        </Link>
-        <div className="product-tile__price">{formatPrice(product.price)}원</div>
-        <div className="product-tile__meta">
-          <span>
-            <MapPin size={14} />
-            {product.region ?? '동네 미정'}
-          </span>
-          <span>{formatRelativeTime(product.createdAt)}</span>
-        </div>
-        <div className="product-tile__seller">
-          <span>{product.seller.nickname}</span>
-          <span>
-            {trustSummary(product.seller.completedTx, product.seller.trustScore)}
-          </span>
-        </div>
-      </div>
 
       <IconButton
         active={isLiked}
@@ -362,6 +367,7 @@ function ProductTile({
         label="찜하기"
         onClick={(event) => {
           event.preventDefault();
+          event.stopPropagation();
           onFavorite(product.id);
         }}
       >

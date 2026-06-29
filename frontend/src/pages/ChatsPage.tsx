@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import {
   ArrowLeft,
-  Ban,
+  ChevronRight,
   Image as ImageIcon,
   MessageCircle,
   MoreVertical,
@@ -299,8 +299,8 @@ export function ChatRoomPage() {
               {socketState === 'blocked' ? '메시지 전송 제한' : '안전하게 메시지 중'}
             </span>
           </div>
-          <IconButton label="상대방 차단" onClick={() => setBlockOpen(true)}>
-            <Ban size={18} />
+          <IconButton label="상대방 관리" onClick={() => setBlockOpen(true)}>
+            <MoreVertical size={18} />
           </IconButton>
         </header>
 
@@ -316,6 +316,7 @@ export function ChatRoomPage() {
               {formatPrice(chat.product.price)}원 · {productStatusLabel(chat.product.status)}
             </small>
           </span>
+          <ChevronRight aria-hidden="true" size={18} />
         </Link>
 
         <div className="chat-safety-note">

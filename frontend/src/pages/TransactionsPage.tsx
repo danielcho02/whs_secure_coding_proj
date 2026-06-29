@@ -308,6 +308,13 @@ export function TransactionDetailPage() {
 
       <section className="transaction-panel">
         <h2>가능한 작업</h2>
+        {!isTerminal &&
+        role === 'buyer' &&
+        (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (
+          <p className="transaction-panel__note">
+            안전결제 진행 시 Toss 결제 화면으로 이동합니다.
+          </p>
+        ) : null}
         <div className="action-grid">
           {!isTerminal && role === 'seller' && transaction.status === 'REQUESTED' ? (
             <Button
@@ -379,7 +386,8 @@ export function TransactionDetailPage() {
             reviewMutation.mutate();
           }}
         >
-          <h2>거래 후기</h2>
+          <h2>거래가 완료됐습니다</h2>
+          <p>거래 경험을 후기로 남겨보세요.</p>
           <label className="field">
             <span>평점</span>
             <input
