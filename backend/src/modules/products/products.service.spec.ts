@@ -225,7 +225,7 @@ describe('ProductsService', () => {
       limit: 20,
       sellerId: 'seller-2',
       userId: 'user-2',
-    } as { page: number; limit: number; sellerId: string; userId: string });
+    });
 
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

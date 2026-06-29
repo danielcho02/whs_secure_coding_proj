@@ -208,7 +208,7 @@ describe('UsersService', () => {
       page: 1,
       limit: 20,
       userId: 'user-2',
-    } as { page: number; limit: number; userId: string });
+    });
 
     expect(prisma.favorite.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
