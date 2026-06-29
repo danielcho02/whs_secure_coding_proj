@@ -43,6 +43,10 @@ describe('UsersController guards', () => {
     expect(getMethodGuards('updateMe')).toContain(JwtAuthGuard);
   });
 
+  it('requires JWT auth for GET /users/me/favorites', () => {
+    expect(getMethodGuards('listMyFavorites')).toContain(JwtAuthGuard);
+  });
+
   it('requires JWT auth for GET /users/:id/private', () => {
     expect(getMethodGuards('getPrivateProfile')).toContain(JwtAuthGuard);
   });
