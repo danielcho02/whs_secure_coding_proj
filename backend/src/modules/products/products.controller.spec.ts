@@ -17,6 +17,10 @@ describe('ProductsController guards', () => {
     expect(getMethodGuards('createProduct')).toContain(JwtAuthGuard);
   });
 
+  it('requires JWT auth for the current seller product list', () => {
+    expect(getMethodGuards('listMyProducts')).toContain(JwtAuthGuard);
+  });
+
   it('requires JWT auth for product update', () => {
     expect(getMethodGuards('updateProduct')).toContain(JwtAuthGuard);
   });

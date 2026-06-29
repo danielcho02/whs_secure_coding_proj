@@ -79,6 +79,12 @@ const publicProduct = {
   images: [],
 };
 
+const hiddenProduct = {
+  ...publicProduct,
+  id: 'hidden-product-1',
+  status: ProductStatus.HIDDEN,
+};
+
 const ownedProduct = {
   id: 'product-1',
   sellerId: 'seller-1',
@@ -167,6 +173,65 @@ describe('ProductsService', () => {
     );
     expect(result.items).toEqual([publicProduct]);
     expect(result.total).toBe(1);
+  });
+
+  it('lists only products owned by the authenticated seller, including hidden products', async () => {
+    vi.mocked(prisma.product.findMany).mockResolvedValue([
+      publicProduct,
+      hiddenProduct,
+    ]);
+    vi.mocked(prisma.product.count).mockResolvedValue(2);
+
+    const result = await service.listMyProducts('seller-1', {
+      page: 1,
+      limit: 20,
+    });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sellerId: 'seller-1' },
+      }),
+    );
+    expect(result.items).toHaveLength(2);
+    expect(result.items[1].status).toBe(ProductStatus.HIDDEN);
+  });
+
+  it('applies status filters to the authenticated seller product list', async () => {
+    vi.mocked(prisma.product.findMany).mockResolvedValue([publicProduct]);
+    vi.mocked(prisma.product.count).mockResolvedValue(1);
+
+    await service.listMyProducts('seller-1', {
+      page: 1,
+      limit: 20,
+      status: ProductStatus.ON_SALE,
+    });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          sellerId: 'seller-1',
+          status: ProductStatus.ON_SALE,
+        },
+      }),
+    );
+  });
+
+  it('ignores userId and sellerId query injection for the authenticated seller product list', async () => {
+    vi.mocked(prisma.product.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.product.count).mockResolvedValue(0);
+
+    await service.listMyProducts('seller-1', {
+      page: 1,
+      limit: 20,
+      sellerId: 'seller-2',
+      userId: 'user-2',
+    });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sellerId: 'seller-1' },
+      }),
+    );
   });
 
   it('searches products using Prisma findMany conditions', async () => {

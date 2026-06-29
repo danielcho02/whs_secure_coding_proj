@@ -7,7 +7,13 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus, TxStatus, UserStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  ProductStatus,
+  TxStatus,
+  UserStatus,
+} from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionsService } from './transactions.service';
@@ -91,6 +97,16 @@ const transactionResponse = {
   product: productSummary,
   buyer,
   seller,
+};
+
+const paidTransactionResponse = {
+  ...transactionResponse,
+  payment: {
+    id: 'payment-1',
+    status: PaymentStatus.PAID,
+    escrowReleased: false,
+    createdAt: new Date('2026-01-01T00:05:00.000Z'),
+  },
 };
 
 const transactionState = {
@@ -508,6 +524,74 @@ describe('TransactionsService', () => {
     expect(prisma.transaction.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { sellerId: seller.id } }),
     );
+  });
+
+  it('returns transaction detail for the buyer', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionResponse,
+    );
+
+    const result = await service.getTransactionForParticipant(
+      transactionState.id,
+      buyer.id,
+    );
+
+    expect(result.id).toBe(transactionState.id);
+    expect(result.buyer.id).toBe(buyer.id);
+  });
+
+  it('returns transaction detail for the seller', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionResponse,
+    );
+
+    const result = await service.getTransactionForParticipant(
+      transactionState.id,
+      seller.id,
+    );
+
+    expect(result.id).toBe(transactionState.id);
+    expect(result.seller.id).toBe(seller.id);
+  });
+
+  it('returns not found for transaction detail access by a third party', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      transactionResponse,
+    );
+
+    await expect(
+      service.getTransactionForParticipant(transactionState.id, 'other-user'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns not found for missing transaction detail', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(null);
+
+    await expect(
+      service.getTransactionForParticipant(transactionState.id, buyer.id),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns only safe payment summary fields on transaction detail', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(
+      paidTransactionResponse,
+    );
+
+    const result = await service.getTransactionForParticipant(
+      transactionState.id,
+      buyer.id,
+    );
+
+    expect(result).toHaveProperty('payment', {
+      id: 'payment-1',
+      status: PaymentStatus.PAID,
+      escrowReleased: false,
+      createdAt: new Date('2026-01-01T00:05:00.000Z'),
+    });
+    expect(result).not.toHaveProperty('payment.idempotencyKey');
+    expect(result).not.toHaveProperty('payment.pgTxId');
+    expect(result).not.toHaveProperty('payment.receiptUrl');
+    expect(result).not.toHaveProperty('payment.orderId');
   });
 
   it('creates a review for a completed transaction participant and calculates target user', async () => {

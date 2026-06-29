@@ -1,6 +1,9 @@
 import { apiClient } from './client';
-import { ProductStatus } from './products';
-import { PublicTransactionUser, TransactionStatus } from './transactions';
+import type { ProductStatus } from './products';
+import type {
+  PublicTransactionUser,
+  TransactionStatus,
+} from './transactions';
 
 export type PaymentStatus =
   | 'PENDING'

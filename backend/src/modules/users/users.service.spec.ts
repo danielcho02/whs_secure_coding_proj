@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { Role, UserStatus } from '@prisma/client';
+import { ProductStatus, Role, UserStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +9,10 @@ import { UsersService } from './users.service';
 
 function createPrismaMock(): PrismaService {
   return {
+    favorite: {
+      count: vi.fn(),
+      findMany: vi.fn(),
+    },
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -35,6 +39,26 @@ const selfUser: AuthenticatedUser = {
   email: 'alice@example.com',
   role: Role.USER,
   status: UserStatus.ACTIVE,
+};
+
+const favoriteProduct = {
+  id: 'product-1',
+  title: '아이폰 15',
+  description: '상태 좋습니다',
+  price: 300000,
+  category: '디지털',
+  region: '서울',
+  status: ProductStatus.ON_SALE,
+  viewCount: 0,
+  createdAt: new Date('2026-01-02T00:00:00.000Z'),
+  seller: {
+    id: 'seller-1',
+    nickname: 'seller',
+    avatarUrl: null,
+    trustScore: 8,
+    completedTx: 2,
+  },
+  images: [],
 };
 
 describe('UsersService', () => {
@@ -151,5 +175,48 @@ describe('UsersService', () => {
     });
 
     await expect(service.getPublicProfile('user-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('lists only current user favorites and excludes hidden products', async () => {
+    vi.mocked(prisma.favorite.findMany).mockResolvedValue([
+      { id: 'favorite-1', product: favoriteProduct },
+    ]);
+    vi.mocked(prisma.favorite.count).mockResolvedValue(1);
+
+    const result = await service.listMyFavorites('user-1', {
+      page: 1,
+      limit: 20,
+    });
+
+    expect(prisma.favorite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          product: { isHidden: false },
+        },
+      }),
+    );
+    expect(result.items).toEqual([favoriteProduct]);
+    expect(result.total).toBe(1);
+  });
+
+  it('ignores userId query injection for current user favorites', async () => {
+    vi.mocked(prisma.favorite.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.favorite.count).mockResolvedValue(0);
+
+    await service.listMyFavorites('user-1', {
+      page: 1,
+      limit: 20,
+      userId: 'user-2',
+    });
+
+    expect(prisma.favorite.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          product: { isHidden: false },
+        },
+      }),
+    );
   });
 });

@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 
 export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD' | 'HIDDEN';
+export type SellerProductStatus = Exclude<ProductStatus, 'HIDDEN'>;
 export type ProductSort = 'latest' | 'priceAsc' | 'priceDesc';
 
 export interface ProductSeller {
@@ -40,6 +41,12 @@ export interface ProductListParams {
   max?: number;
 }
 
+export interface MyProductListParams {
+  page?: number;
+  limit?: number;
+  status?: ProductStatus;
+}
+
 export interface ProductSearchParams extends ProductListParams {
   q: string;
 }
@@ -61,6 +68,12 @@ export interface CreateProductPayload {
 
 export type UpdateProductPayload = Partial<CreateProductPayload>;
 
+export interface ProductImageUploadResult {
+  id: string;
+  url: string;
+  order: number;
+}
+
 interface ApiSuccess<T> {
   success: true;
   data: T;
@@ -70,6 +83,15 @@ export async function listProducts(
   params: ProductListParams = {},
 ): Promise<ProductPage> {
   const response = await apiClient.get<ApiSuccess<ProductPage>>('/products', {
+    params,
+  });
+  return response.data.data;
+}
+
+export async function listMyProducts(
+  params: MyProductListParams = {},
+): Promise<ProductPage> {
+  const response = await apiClient.get<ApiSuccess<ProductPage>>('/products/me', {
     params,
   });
   return response.data.data;
@@ -106,6 +128,47 @@ export async function updateProduct(
   const response = await apiClient.patch<ApiSuccess<Product>>(
     `/products/${productId}`,
     payload,
+  );
+  return response.data.data;
+}
+
+export async function deleteProduct(
+  productId: string,
+): Promise<{ id: string; deleted: true }> {
+  const response = await apiClient.delete<ApiSuccess<{ id: string; deleted: true }>>(
+    `/products/${productId}`,
+  );
+  return response.data.data;
+}
+
+export async function updateProductStatus(
+  productId: string,
+  status: SellerProductStatus,
+): Promise<Product> {
+  const response = await apiClient.patch<ApiSuccess<Product>>(
+    `/products/${productId}/status`,
+    { status },
+  );
+  return response.data.data;
+}
+
+export async function uploadProductImages(
+  productId: string,
+  files: File[],
+): Promise<ProductImageUploadResult[]> {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('images', file);
+  });
+
+  const response = await apiClient.post<ApiSuccess<ProductImageUploadResult[]>>(
+    `/products/${productId}/images`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
   );
   return response.data.data;
 }

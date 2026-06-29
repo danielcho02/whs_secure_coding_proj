@@ -1,4 +1,4 @@
-import { ProductStatus, TxStatus } from '@prisma/client';
+import { PaymentStatus, ProductStatus, TxStatus } from '@prisma/client';
 
 export interface PublicTransactionUser {
   id: string;
@@ -16,6 +16,13 @@ export interface TransactionProductSummary {
   thumbnailUrl: string | null;
 }
 
+export interface TransactionPaymentSummary {
+  id: string;
+  status: PaymentStatus;
+  escrowReleased: boolean;
+  createdAt: Date;
+}
+
 export interface TransactionResponse {
   id: string;
   status: TxStatus;
@@ -25,6 +32,7 @@ export interface TransactionResponse {
   product: TransactionProductSummary;
   buyer: PublicTransactionUser;
   seller: PublicTransactionUser;
+  payment: TransactionPaymentSummary | null;
 }
 
 export interface PaginatedTransactionsResponse {

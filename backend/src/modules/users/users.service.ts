@@ -8,7 +8,9 @@ import {
 import { Prisma, Role, UserStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ListFavoritesDto } from './dto/list-favorites.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
+import { PaginatedProductsResponse } from '../products/types/product-response.type';
 
 const PRIVATE_USER_SELECT = {
   id: true,
@@ -34,6 +36,37 @@ const PUBLIC_USER_WITH_STATUS_SELECT = {
   createdAt: true,
   status: true,
 } satisfies Prisma.UserSelect;
+
+const PUBLIC_SELLER_SELECT = {
+  id: true,
+  nickname: true,
+  avatarUrl: true,
+  trustScore: true,
+  completedTx: true,
+} satisfies Prisma.UserSelect;
+
+const PRODUCT_IMAGE_SELECT = {
+  id: true,
+  url: true,
+  order: true,
+} satisfies Prisma.ProductImageSelect;
+
+const FAVORITE_PRODUCT_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  price: true,
+  category: true,
+  region: true,
+  status: true,
+  viewCount: true,
+  createdAt: true,
+  seller: { select: PUBLIC_SELLER_SELECT },
+  images: {
+    select: PRODUCT_IMAGE_SELECT,
+    orderBy: { order: 'asc' },
+  },
+} satisfies Prisma.ProductSelect;
 
 type PrivateUser = Prisma.UserGetPayload<{ select: typeof PRIVATE_USER_SELECT }>;
 type PublicUserWithStatus = Prisma.UserGetPayload<{
@@ -115,6 +148,40 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async listMyFavorites(
+    userId: string,
+    query: ListFavoritesDto,
+  ): Promise<PaginatedProductsResponse> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where: Prisma.FavoriteWhereInput = {
+      userId,
+      product: { isHidden: false },
+    };
+
+    const [favorites, total] = await Promise.all([
+      this.prisma.favorite.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          product: {
+            select: FAVORITE_PRODUCT_SELECT,
+          },
+        },
+      }),
+      this.prisma.favorite.count({ where }),
+    ]);
+
+    return {
+      items: favorites.map((favorite) => favorite.product),
+      page,
+      limit,
+      total,
+    };
   }
 
   private toProfileUpdateData(dto: UpdateMeDto): Prisma.UserUpdateInput {

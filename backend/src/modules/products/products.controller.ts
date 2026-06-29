@@ -22,6 +22,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CreateProductDto } from './dto/create-product.dto';
 import { FavoriteProductDto } from './dto/favorite-product.dto';
+import { ListMyProductsDto } from './dto/list-my-products.dto';
 import { ListProductsDto } from './dto/list-products.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
@@ -51,6 +52,15 @@ export class ProductsController {
     @Query() query: SearchProductsDto,
   ): Promise<PaginatedProductsResponse> {
     return this.productsService.searchProducts(query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  listMyProducts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListMyProductsDto,
+  ): Promise<PaginatedProductsResponse> {
+    return this.productsService.listMyProducts(user.id, query);
   }
 
   @Get(':id')

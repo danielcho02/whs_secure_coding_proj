@@ -1,5 +1,6 @@
 import { apiClient } from './client';
-import { ProductStatus } from './products';
+import type { ProductStatus } from './products';
+import type { PaymentStatus } from './payments';
 
 export type TransactionStatus =
   | 'REQUESTED'
@@ -29,6 +30,13 @@ export interface TransactionProductSummary {
   thumbnailUrl: string | null;
 }
 
+export interface TransactionPaymentSummary {
+  id: string;
+  status: PaymentStatus;
+  escrowReleased: boolean;
+  createdAt: string;
+}
+
 export interface Transaction {
   id: string;
   status: TransactionStatus;
@@ -38,6 +46,7 @@ export interface Transaction {
   product: TransactionProductSummary;
   buyer: PublicTransactionUser;
   seller: PublicTransactionUser;
+  payment: TransactionPaymentSummary | null;
 }
 
 export interface TransactionPage {
@@ -124,6 +133,13 @@ export async function listTransactions(
   const response = await apiClient.get<ApiSuccess<TransactionPage>>(
     '/transactions',
     { params },
+  );
+  return response.data.data;
+}
+
+export async function getTransaction(transactionId: string): Promise<Transaction> {
+  const response = await apiClient.get<ApiSuccess<Transaction>>(
+    `/transactions/${transactionId}`,
   );
   return response.data.data;
 }

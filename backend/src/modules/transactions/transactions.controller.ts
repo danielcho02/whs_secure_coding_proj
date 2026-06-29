@@ -87,6 +87,15 @@ export class TransactionsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  getTransaction(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<TransactionResponse> {
+    return this.transactionsService.getTransactionForParticipant(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/reviews')
   createReview(
     @Param('id', ParseUUIDPipe) id: string,

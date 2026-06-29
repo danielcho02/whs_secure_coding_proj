@@ -13,6 +13,7 @@ import path from 'path';
 import { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ListMyProductsDto } from './dto/list-my-products.dto';
 import { ListProductsDto, ProductSort } from './dto/list-products.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { SELLER_PRODUCT_STATUS_VALUES } from './dto/update-product-status.dto';
@@ -171,6 +172,31 @@ export class ProductsService {
       this.prisma.product.findMany({
         where,
         orderBy: this.toOrderBy(query.sort ?? 'latest'),
+        skip: (page - 1) * limit,
+        take: limit,
+        select: PRODUCT_RESPONSE_SELECT,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return { items, page, limit, total };
+  }
+
+  async listMyProducts(
+    sellerId: string,
+    query: ListMyProductsDto,
+  ): Promise<PaginatedProductsResponse> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where: Prisma.ProductWhereInput = {
+      sellerId,
+      ...(query.status !== undefined ? { status: query.status } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
         select: PRODUCT_RESPONSE_SELECT,

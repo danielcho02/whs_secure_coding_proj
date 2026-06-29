@@ -48,6 +48,13 @@ const PRODUCT_SUMMARY_SELECT = {
   },
 } satisfies Prisma.ProductSelect;
 
+const PAYMENT_SUMMARY_SELECT = {
+  id: true,
+  status: true,
+  escrowReleased: true,
+  createdAt: true,
+} satisfies Prisma.PaymentSelect;
+
 const TRANSACTION_STATE_SELECT = {
   id: true,
   productId: true,
@@ -70,6 +77,9 @@ const TRANSACTION_RESPONSE_SELECT = {
   },
   seller: {
     select: PUBLIC_USER_SELECT,
+  },
+  payment: {
+    select: PAYMENT_SUMMARY_SELECT,
   },
 } satisfies Prisma.TransactionSelect;
 
@@ -394,7 +404,7 @@ export class TransactionsService {
     }
 
     if (transaction.buyer.id !== userId && transaction.seller.id !== userId) {
-      throw new ForbiddenException('Access denied');
+      throw new NotFoundException('Transaction not found');
     }
 
     return this.toTransactionResponse(transaction);
@@ -595,6 +605,14 @@ export class TransactionsService {
       },
       buyer: transaction.buyer,
       seller: transaction.seller,
+      payment: transaction.payment
+        ? {
+            id: transaction.payment.id,
+            status: transaction.payment.status,
+            escrowReleased: transaction.payment.escrowReleased,
+            createdAt: transaction.payment.createdAt,
+          }
+        : null,
     };
   }
 

@@ -1,5 +1,25 @@
 # 개발 로그
 
+## 2026-06-29 / branch: feat/frontend-marketplace-ui
+
+### 프론트 최종 리뷰 후 degraded UI 제거용 API 보완
+
+- 발견 사항:
+  - `LoginPage.tsx`에 dev/demo 비밀번호 평문 문자열이 남아 있었다.
+  - 거래 상세, 내 상품, 찜 목록 화면이 실제 단건/본인 API 부재로 degraded 상태였다.
+- 구현 기능:
+  - demo login은 `VITE_ENABLE_DEMO_LOGIN=true`일 때만 표시하고, `VITE_DEMO_PASSWORD`가 비어 있으면 버튼을 disabled 처리한다.
+  - `GET /api/transactions/:id`: buyer/seller만 조회 가능, 제3자와 없는 id는 404로 통일, payment 안전 요약만 반환.
+  - `GET /api/products/me`: currentUser.id 기준 본인 상품만 조회, HIDDEN 상품 포함, status 필터 지원.
+  - `GET /api/users/me/favorites`: currentUser.id 기준 찜 상품 조회, hidden 상품 제외.
+  - 프론트 거래 상세/내 상품/찜 목록을 신규 API로 연결하고 mock/fake 없이 실제 API 기반으로 렌더링한다.
+- 테스트:
+  - transaction detail buyer/seller 접근, 제3자 404, 없는 id 404, UUID pipe, payment summary 민감정보 제외.
+  - my products currentUser only, status filter, userId/sellerId 주입 무시.
+  - favorites currentUser only, hidden product 제외, userId 주입 무시.
+- 문서:
+  - `docs/api-spec.md`, `docs/test-checklist.md`, `docs/security-review-log.md`, `docs/report-notes.md` 갱신.
+
 ## 2026-06-28 / branch: chore/seed-admin-demo-data
 
 ### 프론트/최종 시연용 dev seed 데이터 보강
