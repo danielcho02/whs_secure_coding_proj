@@ -287,3 +287,7 @@ npm run start
 - 모바일 tabbar, 상품 feed, sticky CTA, 관리자 화면을 더 flat하고 dense한 구조로 조정.
 - 기능/API/security flow는 유지.
 - 검증: frontend lint/build/security grep 통과.
+
+## 2026-06-29 - Final browser QA fixes
+
+- 최종 브라우저 QA에서 발견된 채팅 optimistic dedup, REFUNDED terminal 거래 UI, 가격 validation, 알림 target navigation, placeholder image fallback을 수정했다.

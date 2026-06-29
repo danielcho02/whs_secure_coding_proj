@@ -55,6 +55,21 @@ const TX_STATUSES: TransactionStatus[] = [
   'REFUNDED',
 ];
 
+const PROGRESS_TX_STATUSES: TransactionStatus[] = [
+  'REQUESTED',
+  'RESERVED',
+  'PAYMENT_PENDING',
+  'PAID',
+  'SHIPPING',
+  'COMPLETED',
+];
+
+const TERMINAL_TX_STATUSES = new Set<TransactionStatus>([
+  'COMPLETED',
+  'CANCELLED',
+  'REFUNDED',
+]);
+
 export function TransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const role = parseRole(searchParams.get('role'));
@@ -153,6 +168,8 @@ export function TransactionDetailPage() {
 
   const transaction = txQuery.data;
   const role = transaction?.buyer.id === user?.id ? 'buyer' : 'seller';
+  const terminalNotice = transaction ? getTerminalNotice(transaction.status) : null;
+  const isTerminal = transaction ? isTerminalStatus(transaction.status) : false;
 
   const actionMutation = useMutation({
     mutationFn: async (action: 'reserve' | 'cancel' | 'complete') => {
@@ -277,9 +294,12 @@ export function TransactionDetailPage() {
       </header>
 
       <section className="status-timeline" aria-label="거래 상태">
-        {TX_STATUSES.slice(0, 6).map((item) => (
+        {getTimelineStatuses(transaction.status).map((item) => (
           <span
-            className={isStatusReached(transaction.status, item) ? 'is-reached' : ''}
+            className={[
+              isStatusReached(transaction.status, item) ? 'is-reached' : '',
+              item === 'CANCELLED' || item === 'REFUNDED' ? 'is-terminal' : '',
+            ].filter(Boolean).join(' ')}
             key={item}
           >
             <i />
@@ -288,10 +308,17 @@ export function TransactionDetailPage() {
         ))}
       </section>
 
+      {terminalNotice ? (
+        <section className={`terminal-banner terminal-banner--${transaction.status.toLowerCase()}`}>
+          <strong>{terminalNotice.title}</strong>
+          <p>{terminalNotice.description}</p>
+        </section>
+      ) : null}
+
       <section className="transaction-panel">
         <h2>가능한 작업</h2>
         <div className="action-grid">
-          {role === 'seller' && transaction.status === 'REQUESTED' ? (
+          {!isTerminal && role === 'seller' && transaction.status === 'REQUESTED' ? (
             <Button
               icon={<PackageCheck size={17} />}
               onClick={() => setConfirmAction('reserve')}
@@ -299,7 +326,8 @@ export function TransactionDetailPage() {
               예약 승인
             </Button>
           ) : null}
-          {role === 'buyer' &&
+          {!isTerminal &&
+          role === 'buyer' &&
           (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (
             <Button
               icon={<CreditCard size={17} />}
@@ -309,7 +337,7 @@ export function TransactionDetailPage() {
               안전결제 진행
             </Button>
           ) : null}
-          {transaction.status !== 'COMPLETED' && transaction.status !== 'CANCELLED' ? (
+          {!isTerminal ? (
             <Button
               icon={<XCircle size={17} />}
               onClick={() => setConfirmAction('cancel')}
@@ -318,7 +346,7 @@ export function TransactionDetailPage() {
               거래 취소
             </Button>
           ) : null}
-          {role === 'buyer' && (transaction.status === 'PAID' || transaction.status === 'SHIPPING') ? (
+          {!isTerminal && role === 'buyer' && (transaction.status === 'PAID' || transaction.status === 'SHIPPING') ? (
             <Button
               icon={<CheckCircle2 size={17} />}
               onClick={() => setConfirmAction('complete')}
@@ -326,7 +354,7 @@ export function TransactionDetailPage() {
               거래 완료
             </Button>
           ) : null}
-          {payment ? (
+          {!isTerminal && payment ? (
             <>
               <Button
                 icon={<CheckCircle2 size={17} />}
@@ -346,42 +374,45 @@ export function TransactionDetailPage() {
               </Button>
             </>
           ) : null}
+          {isTerminal ? <p className="action-grid__empty">종료된 거래라 추가 작업이 없습니다.</p> : null}
         </div>
       </section>
 
       {payment ? <PaymentSummary payment={payment} /> : null}
 
-      <form
-        className="review-box"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          reviewMutation.mutate();
-        }}
-      >
-        <h2>거래 후기</h2>
-        <label className="field">
-          <span>평점</span>
-          <input
-            max={5}
-            min={1}
-            onChange={(event) => setReviewRating(Number(event.target.value))}
-            type="number"
-            value={reviewRating}
-          />
-        </label>
-        <label className="field">
-          <span>코멘트</span>
-          <textarea
-            maxLength={500}
-            onChange={(event) => setReviewComment(event.target.value)}
-            placeholder="거래 경험을 남겨주세요."
-            value={reviewComment}
-          />
-        </label>
-        <Button icon={<Star size={17} />} loading={reviewMutation.isPending} type="submit">
-          후기 남기기
-        </Button>
-      </form>
+      {transaction.status === 'COMPLETED' ? (
+        <form
+          className="review-box"
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            reviewMutation.mutate();
+          }}
+        >
+          <h2>거래 후기</h2>
+          <label className="field">
+            <span>평점</span>
+            <input
+              max={5}
+              min={1}
+              onChange={(event) => setReviewRating(Number(event.target.value))}
+              type="number"
+              value={reviewRating}
+            />
+          </label>
+          <label className="field">
+            <span>코멘트</span>
+            <textarea
+              maxLength={500}
+              onChange={(event) => setReviewComment(event.target.value)}
+              placeholder="거래 경험을 남겨주세요."
+              value={reviewComment}
+            />
+          </label>
+          <Button icon={<Star size={17} />} loading={reviewMutation.isPending} type="submit">
+            후기 남기기
+          </Button>
+        </form>
+      ) : null}
 
       <ConfirmModal
         confirmLabel={confirmAction === 'cancel' ? '취소' : '확인'}
@@ -567,5 +598,48 @@ function nextParams({
 }
 
 function isStatusReached(current: TransactionStatus, target: TransactionStatus): boolean {
-  return TX_STATUSES.indexOf(current) >= TX_STATUSES.indexOf(target);
+  if ((current === 'CANCELLED' || current === 'REFUNDED') && target !== current) {
+    return false;
+  }
+
+  return PROGRESS_TX_STATUSES.indexOf(current) >= PROGRESS_TX_STATUSES.indexOf(target);
+}
+
+function isTerminalStatus(status: TransactionStatus): boolean {
+  return TERMINAL_TX_STATUSES.has(status);
+}
+
+function getTimelineStatuses(status: TransactionStatus): TransactionStatus[] {
+  if (status === 'CANCELLED' || status === 'REFUNDED') {
+    return [...PROGRESS_TX_STATUSES.slice(0, -1), status];
+  }
+
+  return PROGRESS_TX_STATUSES;
+}
+
+function getTerminalNotice(
+  status: TransactionStatus,
+): { title: string; description: string } | null {
+  if (status === 'REFUNDED') {
+    return {
+      title: '환불이 완료된 거래입니다',
+      description: '이미 종료된 거래라 결제, 완료, 취소 같은 추가 작업을 진행할 수 없습니다.',
+    };
+  }
+
+  if (status === 'CANCELLED') {
+    return {
+      title: '취소된 거래입니다',
+      description: '거래가 취소되어 추가 결제나 상태 변경을 진행할 수 없습니다.',
+    };
+  }
+
+  if (status === 'COMPLETED') {
+    return {
+      title: '거래가 완료되었습니다',
+      description: '구매 확정이 끝난 거래라 추가 취소나 결제 작업을 진행할 수 없습니다.',
+    };
+  }
+
+  return null;
 }
