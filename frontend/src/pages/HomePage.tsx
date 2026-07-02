@@ -161,13 +161,16 @@ export function HomePage() {
   const total = productQuery.data?.total ?? 0;
   const products = productQuery.data?.items ?? [];
   const hasNextPage = page * 20 < total;
+  const pageTitle = q ? `"${q}" 검색 결과` : category ? `${category} 물건` : '지금 올라온 물건';
+  const resultSummary = q || category ? `${total}건` : null;
 
   return (
     <section className="market-page" aria-labelledby="market-title">
       <div className="market-head">
         <div>
           <p className="section-kicker">우리 동네 물건</p>
-          <h1 id="market-title">지금 올라온 물건</h1>
+          <h1 id="market-title">{pageTitle}</h1>
+          {resultSummary ? <span>{resultSummary}</span> : null}
         </div>
         <div className="market-head__actions">
           {status === 'authenticated' ? (

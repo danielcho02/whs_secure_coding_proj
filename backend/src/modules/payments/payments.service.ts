@@ -156,7 +156,7 @@ type PaymentRecordLike = PaymentCoreRecord & {
 
 type PaymentsCheckoutConfig = Pick<
   PaymentsConfig,
-  'tossClientKey' | 'successUrl' | 'failUrl' | 'cancelUrl'
+  'providerMode' | 'tossClientKey' | 'successUrl' | 'failUrl' | 'cancelUrl'
 >;
 
 interface WebhookPaymentPayload {
@@ -484,6 +484,7 @@ export class PaymentsService {
     const providerResult = await this.paymentProvider.cancelPayment({
       paymentKey: payment.pgTxId,
       cancelReason: dto.reason ?? '중고거래 안전결제 환불',
+      amount: payment.amount,
     });
 
     if (providerResult.amount !== payment.amount) {
@@ -827,6 +828,7 @@ export class PaymentsService {
       buyer: payment.transaction.buyer,
       seller: payment.transaction.seller,
       checkout: {
+        providerMode: this.paymentsConfig.providerMode ?? 'toss',
         clientKey: this.paymentsConfig.tossClientKey,
         customerKey: payment.transaction.buyerId,
         orderId: payment.orderId,

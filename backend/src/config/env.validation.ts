@@ -15,6 +15,7 @@ interface EnvVars {
   PG_WEBHOOK_SECRET?: string;
   TOSS_CLIENT_KEY: string;
   TOSS_SECRET_KEY: string;
+  PAYMENT_PROVIDER_MODE?: 'mock' | 'toss';
   TOSS_WEBHOOK_SECRET?: string;
   PAYMENT_SUCCESS_URL: string;
   PAYMENT_FAIL_URL: string;
@@ -35,7 +36,11 @@ const schema = Joi.object<EnvVars>({
   JWT_REFRESH_SECRET: Joi.string().min(8).required(),
   JWT_REFRESH_EXPIRES: Joi.string().required(),
   CORS_ORIGIN: Joi.string().uri().required(),
-  UPLOAD_DIR: Joi.string().required(),
+  UPLOAD_DIR: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
   MAX_UPLOAD_SIZE: Joi.number().integer().positive().required(),
   PG_WEBHOOK_SECRET: Joi.string().min(8).optional(),
   TOSS_CLIENT_KEY: Joi.when('NODE_ENV', {
@@ -47,6 +52,11 @@ const schema = Joi.object<EnvVars>({
     is: 'production',
     then: Joi.string().min(8).required(),
     otherwise: Joi.string().min(1).default('test_sk_development'),
+  }),
+  PAYMENT_PROVIDER_MODE: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().valid('toss').optional(),
+    otherwise: Joi.string().valid('mock', 'toss').optional(),
   }),
   TOSS_WEBHOOK_SECRET: Joi.when('NODE_ENV', {
     is: 'production',

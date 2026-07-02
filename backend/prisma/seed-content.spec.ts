@@ -56,4 +56,9 @@ describe('seed content', () => {
     expect(seedSource).toContain('loginFails: 0');
     expect(seedSource).toContain('lockedUntil: null');
   });
+
+  it('blocks seed execution in production', () => {
+    expect(seedSource).toContain('assertSeedEnvironment');
+    expect(seedSource).toContain("process.env.NODE_ENV === 'production'");
+  });
 });

@@ -10,6 +10,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseFormatInterceptor } from './common/interceptors/response-format.interceptor';
 import { AppConfig } from './config/configuration';
+import { registerUploadRoutes } from './upload-routes';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -23,6 +24,7 @@ async function bootstrap(): Promise<void> {
   const maxUploadSize = configService.get('security.maxUploadSize', {
     infer: true,
   });
+  const uploadDir = configService.get('security.uploadDir', { infer: true });
 
   app.setGlobalPrefix('api');
   await app.register(helmet);
@@ -38,6 +40,7 @@ async function bootstrap(): Promise<void> {
     origin: corsOrigin,
     credentials: true,
   });
+  registerUploadRoutes(app, uploadDir);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

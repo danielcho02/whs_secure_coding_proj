@@ -349,7 +349,7 @@ export class ProductsService {
 
     for (const [index, validated] of validatedFiles.entries()) {
       const filename = `${randomUUID()}.${validated.image.extension}`;
-      const relativeUrl = `products/${filename}`;
+      const relativeUrl = `/uploads/products/${filename}`;
       const absolutePath = path.join(uploadDirectory, filename);
 
       await writeFile(absolutePath, validated.file.buffer);

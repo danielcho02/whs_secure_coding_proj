@@ -22,6 +22,8 @@ const REMOVED_CTRL_ENTER_SNIPPET = ['Ctrl', 'Enter'].join('+');
 const REMOVED_JBL_TYPO_TITLE = ['JBL Charge 5 블루투스 스피', '카'].join('');
 
 async function main(): Promise<void> {
+  assertSeedEnvironment();
+
   const passwordHash = await bcrypt.hash(DEV_PASSWORD, BCRYPT_SALT_ROUNDS);
   await removeQaResidue();
 
@@ -111,7 +113,8 @@ async function main(): Promise<void> {
   const reservedProduct = await upsertProduct({
     sellerId: seller.id,
     title: 'HHKB Professional Hybrid Type-S',
-    description: '무각인 흰색 모델입니다. 키감 좋고 구성품과 박스 모두 보관 중입니다.',
+    description:
+      '무각인 흰색 모델입니다. 키감 좋고 구성품과 박스 모두 보관 중입니다.',
     price: 80000,
     category: '디지털',
     region: '서울 마포구',
@@ -122,7 +125,8 @@ async function main(): Promise<void> {
   const soldProduct = await upsertProduct({
     sellerId: seller.id,
     title: 'LG 32UN880 4K 모니터',
-    description: '모니터암 일체형 32인치 4K 모니터입니다. 화면 이상 없고 구매확정 완료된 거래입니다.',
+    description:
+      '모니터암 일체형 32인치 4K 모니터입니다. 화면 이상 없고 구매확정 완료된 거래입니다.',
     price: 180000,
     category: '디지털',
     region: '서울 마포구',
@@ -133,7 +137,8 @@ async function main(): Promise<void> {
   const hiddenProduct = await upsertProduct({
     sellerId: secondSeller.id,
     title: '판매 제한 품목으로 숨김 처리된 배터리 팩',
-    description: '운영 정책 위반 가능성이 있어 관리자 검토 후 숨김 처리된 상품입니다.',
+    description:
+      '운영 정책 위반 가능성이 있어 관리자 검토 후 숨김 처리된 상품입니다.',
     price: 43000,
     category: '생활',
     region: '인천 부평구',
@@ -184,7 +189,8 @@ async function main(): Promise<void> {
   const paymentPendingProduct = await upsertProduct({
     sellerId: seller.id,
     title: '갤럭시 탭 S9 FE 256GB',
-    description: '필기용으로 구매했지만 사용 빈도가 낮아 판매합니다. 정품 펜과 케이스 포함입니다.',
+    description:
+      '필기용으로 구매했지만 사용 빈도가 낮아 판매합니다. 정품 펜과 케이스 포함입니다.',
     price: 310000,
     category: '디지털',
     region: '서울 강남구',
@@ -195,7 +201,8 @@ async function main(): Promise<void> {
   const paidProduct = await upsertProduct({
     sellerId: secondSeller.id,
     title: '소니 WH-1000XM5 노이즈캔슬링 헤드폰',
-    description: '실내에서만 사용했습니다. 이어패드 상태 좋고 케이스와 케이블 포함입니다.',
+    description:
+      '실내에서만 사용했습니다. 이어패드 상태 좋고 케이스와 케이블 포함입니다.',
     price: 99000,
     category: '디지털',
     region: '서울 서초구',
@@ -206,7 +213,8 @@ async function main(): Promise<void> {
   const cancelledProduct = await upsertProduct({
     sellerId: seller.id,
     title: 'JBL Charge 5 블루투스 스피커',
-    description: '캠핑용으로 구매했고 음질과 배터리 상태 모두 좋습니다. 생활 흠집 약간 있습니다.',
+    description:
+      '캠핑용으로 구매했고 음질과 배터리 상태 모두 좋습니다. 생활 흠집 약간 있습니다.',
     price: 56000,
     category: '디지털',
     region: '대구 수성구',
@@ -217,7 +225,8 @@ async function main(): Promise<void> {
   const refundedProduct = await upsertProduct({
     sellerId: secondSeller.id,
     title: '소니 플레이스테이션 5 디지털 에디션',
-    description: '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
+    description:
+      '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
     price: 260000,
     category: '게임/취미',
     region: '광주 북구',
@@ -225,7 +234,9 @@ async function main(): Promise<void> {
     legacyTitles: [legacyTitle('REFUNDED 게임기'), REMOVED_QA_PRODUCT_TITLE],
   });
 
-  await prisma.adminLog.deleteMany({ where: { action: REMOVED_ADMIN_LOG_ACTION } });
+  await prisma.adminLog.deleteMany({
+    where: { action: REMOVED_ADMIN_LOG_ACTION },
+  });
 
   await replaceProductImages(onSaleProduct.id, [
     {
@@ -545,7 +556,8 @@ async function main(): Promise<void> {
     type: ReportType.PRODUCT,
     targetId: reportedProduct.id,
     reason: '상품 설명과 실제 상태가 달라 보여요',
-    description: '사진에는 깨끗해 보이지만 대화에서 큰 흠집이 있다고 확인했습니다.',
+    description:
+      '사진에는 깨끗해 보이지만 대화에서 큰 흠집이 있다고 확인했습니다.',
     status: ReportStatus.REVIEWING,
     adminId: admin.id,
     adminNote: '판매자에게 추가 사진과 구매 영수증 확인을 요청했습니다.',
@@ -775,7 +787,8 @@ async function removeQaResidue(): Promise<void> {
       where: { id: product.id },
       data: {
         title: '소니 플레이스테이션 5 디지털 에디션',
-        description: '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
+        description:
+          '본체와 듀얼센스 1개 구성입니다. 초기화 완료했고 박스와 전원 케이블 함께 드립니다.',
         price: 260000,
         category: '게임/취미',
         region: '광주 북구',
@@ -1167,6 +1180,14 @@ async function upsertAdminLog(input: UpsertAdminLogInput): Promise<void> {
 
 function seedTime(minutes: number): Date {
   return new Date(SEED_BASE_TIME.getTime() + minutes * 60 * 1000);
+}
+
+function assertSeedEnvironment(): void {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Seed data is only allowed in development or test environments',
+    );
+  }
 }
 
 function legacyTitle(title: string): string {

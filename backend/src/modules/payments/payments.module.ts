@@ -7,6 +7,7 @@ import { PAYMENTS_CONFIG, PaymentsConfig } from './payments.config';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { PAYMENT_PROVIDER } from './providers/payment-provider.interface';
+import { MockPaymentsProvider } from './providers/mock-payments.provider';
 import { TossPaymentsProvider } from './providers/toss-payments.provider';
 import { TossWebhookVerifier } from './toss-webhook-verifier';
 
@@ -21,10 +22,17 @@ import { TossWebhookVerifier } from './toss-webhook-verifier';
         configService: ConfigService<AppConfig, true>,
       ): PaymentsConfig => configService.get('payments', { infer: true }),
     },
+    MockPaymentsProvider,
     TossPaymentsProvider,
     {
       provide: PAYMENT_PROVIDER,
-      useExisting: TossPaymentsProvider,
+      inject: [PAYMENTS_CONFIG, MockPaymentsProvider, TossPaymentsProvider],
+      useFactory: (
+        paymentsConfig: PaymentsConfig,
+        mockProvider: MockPaymentsProvider,
+        tossProvider: TossPaymentsProvider,
+      ) =>
+        paymentsConfig.providerMode === 'mock' ? mockProvider : tossProvider,
     },
     {
       provide: TossWebhookVerifier,

@@ -3,9 +3,12 @@ import {
   GUARDS_METADATA,
   ROUTE_ARGS_METADATA,
 } from '@nestjs/common/constants';
-import { describe, expect, it } from 'vitest';
+import { Role, UserStatus } from '@prisma/client';
+import { describe, expect, it, vi } from 'vitest';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TransactionsController } from './transactions.controller';
+import { TransactionsService } from './transactions.service';
 
 interface RouteArgMetadata {
   data?: unknown;
@@ -65,5 +68,32 @@ describe('TransactionsController guards', () => {
 
   it('requires JWT auth for review creation', () => {
     expect(getMethodGuards('createReview')).toContain(JwtAuthGuard);
+  });
+});
+
+describe('TransactionsController reservation', () => {
+  it('reserves with the authenticated seller id', async () => {
+    const reserveTransaction = vi.fn().mockResolvedValue({ id: 'transaction-1' });
+    const controller = new TransactionsController({
+      reserveTransaction,
+    } as unknown as TransactionsService);
+    const user: AuthenticatedUser = {
+      id: '22222222-2222-4222-8222-222222222222',
+      email: 'seller@example.com',
+      role: Role.USER,
+      status: UserStatus.ACTIVE,
+    };
+
+    await expect(
+      controller.reserveTransaction(
+        '11111111-1111-4111-8111-111111111111',
+        user,
+        {},
+      ),
+    ).resolves.toEqual({ id: 'transaction-1' });
+    expect(reserveTransaction).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      user.id,
+    );
   });
 });

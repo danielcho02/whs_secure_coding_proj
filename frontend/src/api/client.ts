@@ -76,10 +76,10 @@ apiClient.interceptors.response.use(
       const session = await refreshAccessToken();
       originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
       return apiClient(originalRequest);
-    } catch (refreshError) {
+    } catch {
       setAccessToken(null);
       sessionListener?.(null);
-      throw refreshError;
+      throw error;
     }
   },
 );
@@ -107,5 +107,9 @@ function isAuthRequest(url: string | undefined): boolean {
     return false;
   }
 
-  return url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
+  return (
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/refresh')
+  );
 }

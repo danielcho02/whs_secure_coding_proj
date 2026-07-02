@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ReportStatus, ReportType, UserStatus } from '@prisma/client';
+import { Prisma, ReportStatus, ReportType, Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ListMyReportsDto } from './dto/list-my-reports.dto';
@@ -90,6 +90,8 @@ export class ReportsService {
         select: REPORT_RESPONSE_SELECT,
       });
 
+      await this.notifyAdminsOfReport(report.id);
+
       return this.toReportResponse(report);
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
@@ -98,6 +100,27 @@ export class ReportsService {
 
       throw error;
     }
+  }
+
+  private async notifyAdminsOfReport(reportId: string): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: { role: Role.ADMIN, status: UserStatus.ACTIVE },
+      select: { id: true },
+    });
+
+    if (admins.length === 0) {
+      return;
+    }
+
+    await this.prisma.notification.createMany({
+      data: admins.map((admin) => ({
+        userId: admin.id,
+        type: 'ADMIN_REPORT',
+        message: '새로운 신고가 접수되었습니다.',
+        targetType: 'REPORT',
+        targetId: reportId,
+      })),
+    });
   }
 
   async listMyReports(

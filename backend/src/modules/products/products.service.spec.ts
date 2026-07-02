@@ -500,7 +500,7 @@ describe('ProductsService', () => {
         data: expect.objectContaining({
           productId: 'product-1',
           url: expect.stringMatching(
-            /^products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/,
+            /^\/uploads\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/,
           ),
           order: 1,
         }),

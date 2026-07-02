@@ -8,17 +8,17 @@
 
 ## 1. 기술 스택
 
-| 영역 | 선택 | 이유 |
-|------|------|------|
-| 백엔드 | **NestJS (Node.js + TypeScript)** | Guard/Pipe/Interceptor로 접근제어·검증을 선언적으로 강제, 에이전트가 구조 예측 쉬움 |
-| ORM | **Prisma** | 타입 안전, Prepared Statement 자동화로 SQLi 차단 |
-| DB | **PostgreSQL** | 트랜잭션·락 지원(Race Condition 방어), JSONB |
-| 캐시/세션/레이트리밋 | **Redis** | 로그인 실패 카운트, Rate Limit, 토큰 블랙리스트 |
-| 프론트엔드 | **React + Vite + TypeScript** | 컴포넌트 단위 출력 인코딩(XSS 방어), 에이전트 친화 |
-| 실시간 채팅 | **Socket.IO (WebSocket)** | JWT 핸드셰이크 인증 |
-| 인증 | **JWT 액세스(15분) + 리프레시 토큰(httpOnly 쿠키, 회전)** | XSS 토큰 탈취 표면 축소 + 세션 무효화 가능 |
-| 파일 저장 | 로컬 `/uploads` (실행 불가 경로) 또는 S3 | 업로드 파일 실행 차단 |
-| 검증 | `class-validator` + `class-transformer` | DTO 화이트리스트(Mass Assignment 방어) |
+| 영역                 | 선택                                                      | 이유                                                                                |
+| -------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 백엔드               | **NestJS (Node.js + TypeScript)**                         | Guard/Pipe/Interceptor로 접근제어·검증을 선언적으로 강제, 에이전트가 구조 예측 쉬움 |
+| ORM                  | **Prisma**                                                | 타입 안전, Prepared Statement 자동화로 SQLi 차단                                    |
+| DB                   | **PostgreSQL**                                            | 트랜잭션·락 지원(Race Condition 방어), JSONB                                        |
+| 캐시/세션/레이트리밋 | **Redis**                                                 | 로그인 실패 카운트, Rate Limit, 토큰 블랙리스트                                     |
+| 프론트엔드           | **React + Vite + TypeScript**                             | 컴포넌트 단위 출력 인코딩(XSS 방어), 에이전트 친화                                  |
+| 실시간 채팅          | **Socket.IO (WebSocket)**                                 | JWT 핸드셰이크 인증                                                                 |
+| 인증                 | **JWT 액세스(15분) + 리프레시 토큰(httpOnly 쿠키, 회전)** | XSS 토큰 탈취 표면 축소 + 세션 무효화 가능                                          |
+| 파일 저장            | 로컬 `/uploads` (실행 불가 경로) 또는 S3                  | 업로드 파일 실행 차단                                                               |
+| 검증                 | `class-validator` + `class-transformer`                   | DTO 화이트리스트(Mass Assignment 방어)                                              |
 
 > 인증 방식 결정 근거: 액세스 토큰은 프론트 메모리에만 보관, 리프레시 토큰은 `HttpOnly; Secure; SameSite=Strict` 쿠키로 보관·회전한다. localStorage에 토큰을 두지 않아 Stored XSS로 인한 탈취를 막고, 서버는 리프레시 토큰 화이트리스트(Redis)로 로그아웃·강제 만료를 처리한다(SR-04).
 
@@ -99,7 +99,7 @@ JWT_REFRESH_SECRET=change-me
 JWT_REFRESH_EXPIRES=7d
 
 CORS_ORIGIN=http://localhost:5173
-UPLOAD_DIR=/var/app/uploads      # 웹 루트 밖, 실행 불가
+UPLOAD_DIR=./uploads             # 개발/테스트용. 운영은 웹 루트 밖 실행 불가 경로를 명시
 MAX_UPLOAD_SIZE=5242880          # 5MB
 
 PG_WEBHOOK_SECRET=change-me      # legacy 결제 웹훅 secret fallback
@@ -121,15 +121,15 @@ RATE_LIMIT_MAX=100
 
 ## 5. 문서 인덱스
 
-| 문서 | 내용 |
-|------|------|
-| `requirements.md` | 기능/비기능/보안 요구사항 |
-| `architecture.md` | 시스템 구조, 인증 흐름, 도메인 분리 |
-| `database-design.md` | ERD, 테이블 스키마 |
-| `api-spec.md` | REST API 명세 |
-| `security-spec.md` | 위협 모델링, 취약점 분석·재현·패치 |
-| `coding-conventions.md` | 코딩 규칙, 커밋 규칙, 테스트 |
-| `CLAUDE.md` / `AGENT.md` | 코딩 에이전트용 작업 지침 |
+| 문서                     | 내용                                |
+| ------------------------ | ----------------------------------- |
+| `requirements.md`        | 기능/비기능/보안 요구사항           |
+| `architecture.md`        | 시스템 구조, 인증 흐름, 도메인 분리 |
+| `database-design.md`     | ERD, 테이블 스키마                  |
+| `api-spec.md`            | REST API 명세                       |
+| `security-spec.md`       | 위협 모델링, 취약점 분석·재현·패치  |
+| `coding-conventions.md`  | 코딩 규칙, 커밋 규칙, 테스트        |
+| `CLAUDE.md` / `AGENT.md` | 코딩 에이전트용 작업 지침           |
 
 ---
 

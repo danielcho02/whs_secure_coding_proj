@@ -9,6 +9,7 @@ export interface ConfirmPaymentInput {
 export interface CancelPaymentInput {
   paymentKey: string;
   cancelReason: string;
+  amount: number;
 }
 
 export interface ProviderPaymentResult {
