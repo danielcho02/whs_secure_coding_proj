@@ -173,7 +173,7 @@ export function TransactionDetailPage() {
   const canSellerCompleteTransaction =
     !isTerminal &&
     role === 'seller' &&
-    (transaction?.status === 'RESERVED' || transaction?.status === 'SHIPPING');
+    (transaction?.status === 'PAID' || transaction?.status === 'SHIPPING');
 
   const actionMutation = useMutation({
     mutationFn: async (action: 'reserve' | 'cancel' | 'complete') => {

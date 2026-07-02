@@ -26,6 +26,9 @@ function createPrismaMock(): PrismaService {
       findFirst: vi.fn(),
       updateMany: vi.fn(),
     },
+    payment: {
+      findFirst: vi.fn(),
+    },
     transaction: {
       count: vi.fn(),
       create: vi.fn(),
@@ -417,7 +420,7 @@ describe('TransactionsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('completes a reserved transaction for the seller and synchronizes product status', async () => {
+  it('rejects completion for a reserved transaction before payment is paid', async () => {
     vi.mocked(prisma.transaction.findUnique)
       .mockResolvedValueOnce({
         ...transactionState,
@@ -432,6 +435,56 @@ describe('TransactionsService', () => {
     vi.mocked(prisma.product.updateMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.user.updateMany).mockResolvedValue({ count: 1 });
 
+    await expect(
+      service.completeTransaction(transactionState.id, seller.id),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.payment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.transaction.updateMany).not.toHaveBeenCalled();
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects completion for a paid transaction without a persisted paid payment', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue({
+      ...transactionState,
+      status: TxStatus.PAID,
+    });
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(null);
+
+    await expect(
+      service.completeTransaction(transactionState.id, seller.id),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith({
+      where: {
+        transactionId: transactionState.id,
+        status: PaymentStatus.PAID,
+        escrowReleased: false,
+      },
+      select: { id: true },
+    });
+    expect(prisma.transaction.updateMany).not.toHaveBeenCalled();
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('completes a paid transaction for the seller and synchronizes product status', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce({
+        ...transactionState,
+        status: TxStatus.PAID,
+      })
+      .mockResolvedValueOnce({
+        ...transactionResponse,
+        status: TxStatus.COMPLETED,
+        product: { ...productSummary, status: ProductStatus.SOLD },
+      });
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'payment-1',
+    });
+    vi.mocked(prisma.transaction.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.product.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.user.updateMany).mockResolvedValue({ count: 1 });
+
     const result = await service.completeTransaction(
       transactionState.id,
       seller.id,
@@ -440,7 +493,7 @@ describe('TransactionsService', () => {
     expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
       where: {
         id: transactionState.id,
-        status: { in: [TxStatus.RESERVED, TxStatus.SHIPPING] },
+        status: { in: [TxStatus.PAID, TxStatus.SHIPPING] },
       },
       data: { status: TxStatus.COMPLETED },
     });
