@@ -158,14 +158,22 @@ export function TransactionDetailPage() {
   });
 
   const transaction = txQuery.data;
-  const role = transaction?.buyer.id === user?.id ? 'buyer' : 'seller';
+  const role =
+    transaction?.buyer.id === user?.id
+      ? 'buyer'
+      : transaction?.seller.id === user?.id
+        ? 'seller'
+        : null;
   const terminalNotice = transaction ? getTerminalNotice(transaction.status) : null;
   const isTerminal = transaction ? isTerminalStatus(transaction.status) : false;
-  const isPaymentPaid = payment?.status === 'PAID';
+  const effectivePayment = transaction?.payment ?? payment;
+  const isPaymentPaid = effectivePayment?.status === 'PAID';
   const canUsePaidPaymentActions =
     !isTerminal && role === 'buyer' && isPaymentPaid;
   const canSellerCompleteTransaction =
-    !isTerminal && role === 'seller' && transaction?.status === 'SHIPPING';
+    !isTerminal &&
+    role === 'seller' &&
+    (transaction?.status === 'RESERVED' || transaction?.status === 'SHIPPING');
 
   const actionMutation = useMutation({
     mutationFn: async (action: 'reserve' | 'cancel' | 'complete') => {
@@ -239,7 +247,13 @@ export function TransactionDetailPage() {
   });
 
   const confirmPaymentMutation = useMutation({
-    mutationFn: () => confirmPayment(payment?.id ?? ''),
+    mutationFn: () => {
+      if (!effectivePayment) {
+        throw new Error('PAYMENT_REQUIRED');
+      }
+
+      return confirmPayment(effectivePayment.id);
+    },
     onSuccess: async (updatedPayment) => {
       setPayment(updatedPayment);
       await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
@@ -252,7 +266,13 @@ export function TransactionDetailPage() {
   });
 
   const refundMutation = useMutation({
-    mutationFn: () => requestRefund(payment?.id ?? '', { reason: '구매자 환불 요청' }),
+    mutationFn: () => {
+      if (!effectivePayment) {
+        throw new Error('PAYMENT_REQUIRED');
+      }
+
+      return requestRefund(effectivePayment.id, { reason: '구매자 환불 요청' });
+    },
     onSuccess: async (updatedPayment) => {
       setPayment(updatedPayment);
       await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
@@ -315,7 +335,9 @@ export function TransactionDetailPage() {
           title={transaction.product.title}
         />
         <div>
-          <p className="section-kicker">{role === 'buyer' ? '구매 거래' : '판매 거래'}</p>
+          <p className="section-kicker">
+            {role === 'buyer' ? '구매 거래' : role === 'seller' ? '판매 거래' : '거래'}
+          </p>
           <h1 id="transaction-title">{transaction.product.title}</h1>
           <strong>{formatPrice(transaction.amount)}원</strong>
         </div>
@@ -345,7 +367,7 @@ export function TransactionDetailPage() {
 
       <section className="transaction-panel">
         <h2>가능한 작업</h2>
-        {!isTerminal ? (
+        {!isTerminal && role ? (
           <p className="transaction-panel__note">
             {getTransactionStepGuide(transaction.status, role)}
           </p>
@@ -366,7 +388,7 @@ export function TransactionDetailPage() {
               예약 승인
             </Button>
           ) : null}
-          {!payment &&
+          {!effectivePayment &&
           !isTerminal &&
           role === 'buyer' &&
           (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (

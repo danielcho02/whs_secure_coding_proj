@@ -1,7 +1,41 @@
-import { describe, expect, it, vi } from 'vitest';
-import { resolveUploadDir } from './configuration';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import configuration, { resolveUploadDir } from './configuration';
 
 const defaultUploadDir = '/var/app/uploads';
+const originalEnv = process.env;
+
+function setConfigurationEnv(paymentProviderMode?: 'mock' | 'toss') {
+  process.env = {
+    ...originalEnv,
+    NODE_ENV: 'development',
+    UPLOAD_DIR: '/tmp/uploads',
+  };
+
+  if (paymentProviderMode) {
+    process.env.PAYMENT_PROVIDER_MODE = paymentProviderMode;
+  } else {
+    delete process.env.PAYMENT_PROVIDER_MODE;
+  }
+}
+
+afterEach(() => {
+  process.env = originalEnv;
+  vi.restoreAllMocks();
+});
+
+describe('configuration payment provider', () => {
+  it('defaults to Toss when the payment provider mode is omitted', () => {
+    setConfigurationEnv();
+
+    expect(configuration().payments.providerMode).toBe('toss');
+  });
+
+  it('uses mock payments only when explicitly configured outside production', () => {
+    setConfigurationEnv('mock');
+
+    expect(configuration().payments.providerMode).toBe('mock');
+  });
+});
 
 describe('configuration upload directory resolution', () => {
   it('falls back in development when the default upload dir is not writable', () => {

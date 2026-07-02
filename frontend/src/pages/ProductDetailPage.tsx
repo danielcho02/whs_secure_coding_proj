@@ -265,14 +265,14 @@ export function ProductDetailPage() {
           </div>
           <div>
             <strong>{product.seller.nickname}</strong>
-            <span title="신뢰도는 최대 5점이며 완료 거래와 후기 기반으로 표시됩니다.">
+            <span title="완료 거래와 안전 활동을 바탕으로 쌓이는 신뢰도입니다.">
               {trustDetail(
                 product.seller.completedTx,
                 product.seller.trustScore,
               )}
             </span>
             <small className="seller-band__help">
-              신뢰도는 최대 5점 기준입니다.
+              완료 거래와 안전 활동을 바탕으로 쌓이는 신뢰도입니다.
             </small>
           </div>
           <ShieldCheck size={20} />

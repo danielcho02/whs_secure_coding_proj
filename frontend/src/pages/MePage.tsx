@@ -84,7 +84,7 @@ export function MePage() {
       <div className="profile-stats">
         <div>
           <strong>{user.trustScore ?? 0}</strong>
-          <span>신뢰도 점수 · 최대 5점</span>
+          <span>완료 거래와 안전 활동 기반</span>
         </div>
         <div>
           <strong>{user.completedTx ?? 0}</strong>

@@ -96,9 +96,7 @@ export default (): AppConfig => ({
       process.env.PAYMENT_PROVIDER_MODE === 'toss' ||
       process.env.PAYMENT_PROVIDER_MODE === 'mock'
         ? process.env.PAYMENT_PROVIDER_MODE
-        : process.env.NODE_ENV === 'production'
-          ? 'toss'
-          : 'mock',
+        : 'toss',
     tossClientKey: process.env.TOSS_CLIENT_KEY ?? 'test_ck_development',
     tossSecretKey: process.env.TOSS_SECRET_KEY ?? 'test_sk_development',
     webhookSecret:
