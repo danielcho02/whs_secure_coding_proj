@@ -103,7 +103,7 @@ Base URL: `/api/transactions`
 - `POST /api/transactions`: 인증 필요. `productId`만 허용하며 `buyerId`, `sellerId`, `amount`, `status`는 서버가 결정
 - `PATCH /api/transactions/:id/reserve`: 판매자만 가능. `REQUESTED` 거래를 `RESERVED`로 전환하고 상품 상태를 `RESERVED`로 동기화
 - `PATCH /api/transactions/:id/cancel`: 구매자 또는 판매자만 가능. `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`만 `CANCELLED`로 전환
-- `PATCH /api/transactions/:id/complete`: 판매자만 가능. `RESERVED`, `SHIPPING`만 `COMPLETED`로 전환하고 상품 상태를 `SOLD`로 동기화
+- `PATCH /api/transactions/:id/complete`: 판매자만 가능. persisted `PAID` payment가 있는 `PAID`, `SHIPPING` 거래만 `COMPLETED`로 전환하고 상품 상태를 `SOLD`로 동기화
 - `GET /api/transactions`: 인증 필요. `role=buyer|seller|all`, `status`, `page`, `limit` 지원. 현재 사용자가 buyer 또는 seller인 거래만 반환
 - `POST /api/transactions/:id/reviews`: 완료 거래 당사자만 가능. `rating`, `comment`만 허용하며 `authorId`, `targetId`, `transactionId`는 서버가 결정
 
@@ -112,7 +112,7 @@ Transactions 보안 정책:
 - 거래 요청은 `productId`만 받는다. `buyerId`, `sellerId`, `amount`, `status`, `productPrice` 같은 권한/금액/상태 필드는 DTO whitelist에서 거부한다.
 - 거래 요청의 `buyerId`는 access token subject, `sellerId`와 `amount`는 DB의 상품 판매자와 가격에서만 결정한다.
 - 거래 상태 전이는 서버 상태 머신이 현재 상태와 행위자 권한을 검증한 뒤 수행한다. 클라이언트가 보낸 목표 상태는 사용하지 않는다.
-- 예약, 취소, 완료는 Prisma `$transaction` 안에서 `Transaction.status`와 `Product.status`를 함께 갱신한다.
+- 예약, 취소, 완료는 Prisma `$transaction` 안에서 `Transaction.status`와 `Product.status`를 함께 갱신한다. 완료 전이는 persisted `PAID` payment를 확인한 뒤에만 수행한다.
 - 중복 진행 거래는 같은 구매자와 상품 기준 `REQUESTED`, `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING` 상태가 있으면 거부한다.
 - 내 거래 내역은 현재 사용자가 buyer 또는 seller인 거래만 조회한다. 타인의 거래 ID를 추측해도 서비스 레벨에서 차단한다.
 - 후기는 `COMPLETED` 거래의 buyer 또는 seller만 작성할 수 있고, 상대방 `targetId`는 서버에서 계산한다.
@@ -180,7 +180,7 @@ Admin 보안 정책:
 - 모든 `/api/admin/*`는 `JwtAuthGuard + RolesGuard + @Roles(ADMIN)`로 보호하며, ADMIN role과 ACTIVE status를 모두 요구한다.
 - 관리자 상품 restore는 해당 상품에 `RESERVED`, `PAYMENT_PENDING`, `PAID`, `SHIPPING`, `COMPLETED` 거래가 있으면 재판매 방지를 위해 409로 거부한다.
 - 관리자 자기 자신 정지는 400, 마지막 ACTIVE 관리자 정지는 403으로 거부한다.
-- 모든 관리자 상태 변경은 `AdminLog`에 기록한다. 로그 수정/삭제 API는 없다.
+- 정상 경로의 관리자 상태 변경은 `AdminLog`에 기록한다. 로그 수정/삭제 API는 없다. 상태 변경과 로그 insert의 transaction 원자성은 운영 전 보강 대상이다.
 - 관리자 목록/로그 응답은 `passwordHash`, refresh token, Toss secret/key, token, phone/email을 반환하지 않는다.
 
 ## Notifications API
