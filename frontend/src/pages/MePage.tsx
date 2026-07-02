@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-  Camera,
   Edit3,
   ExternalLink,
   Heart,
@@ -37,13 +36,11 @@ export function MePage() {
   const { showToast } = useToast();
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatarUrl ?? null);
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
     setBio(user?.bio ?? '');
-    setAvatarPreview(user?.avatarUrl ?? null);
   }, [user]);
 
   const updateMutation = useMutation({
@@ -154,23 +151,6 @@ export function MePage() {
               onChange={(event) => setBio(event.target.value)}
               value={bio ?? ''}
             />
-          </label>
-          <label className="profile-photo-picker">
-            <span>프로필 사진</span>
-            <input
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setAvatarPreview(URL.createObjectURL(file));
-                showToast('프로필 사진 업로드 저장은 준비 중입니다.', 'info');
-              }}
-              type="file"
-            />
-            <span className="profile-photo-picker__preview">
-              {avatarPreview ? <img alt="" src={avatarPreview} /> : <Camera size={20} />}
-            </span>
-            <small>사진 저장은 다음 업데이트에서 지원됩니다.</small>
           </label>
           <Button loading={updateMutation.isPending} type="submit">
             저장

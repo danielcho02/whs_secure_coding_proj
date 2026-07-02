@@ -12,6 +12,10 @@ interface HttpResponse {
   };
 }
 
+interface HttpRequest {
+  url?: string;
+}
+
 interface ErrorResponse {
   success: false;
   error: {
@@ -24,13 +28,20 @@ interface ErrorResponse {
 export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
+    const request = host.switchToHttp().getRequest<HttpRequest>();
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
+      this.logServerException(exception, status, request.url);
       response.status(status).send(this.toErrorResponse(exception, status));
       return;
     }
 
+    this.logServerException(
+      exception,
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      request.url,
+    );
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
       success: false,
       error: {
@@ -40,7 +51,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private toErrorResponse(exception: HttpException, status: number): ErrorResponse {
+  private toErrorResponse(
+    exception: HttpException,
+    status: number,
+  ): ErrorResponse {
     const exceptionResponse = exception.getResponse();
     const message =
       typeof exceptionResponse === 'object' &&
@@ -53,9 +67,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       success: false,
       error: {
         code: HttpStatus[status] ?? 'HTTP_ERROR',
-        message,
+        message: status >= 500 ? 'Internal server error' : message,
       },
     };
+  }
+
+  private logServerException(
+    exception: unknown,
+    status: number,
+    path: string | undefined,
+  ): void {
+    if (status < 500 || process.env.NODE_ENV === 'production') {
+      return;
+    }
+
+    const name = exception instanceof Error ? exception.name : typeof exception;
+    const message =
+      exception instanceof Error ? exception.message : 'Non-error exception';
+
+    console.error(
+      `[exception] name=${name} message=${message} path=${path ?? 'unknown'}`,
+    );
   }
 
   private normalizeMessage(message: unknown): string {

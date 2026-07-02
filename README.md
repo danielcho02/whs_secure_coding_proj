@@ -71,7 +71,7 @@ Products 보안 정책:
 - 응답의 판매자 정보는 `id`, `nickname`, `avatarUrl`, `trustScore`, `completedTx`로 제한하고 `passwordHash`, `email`, `phone`은 조회하지 않는다.
 - `price`는 정수 `0..100000000` 범위로 검증한다.
 - 이미지 업로드는 5MB 이하, 요청당 최대 10개, 확장자+MIME+매직바이트를 검증한다. SVG/HTML/PHP/JSP 및 `shell.php.jpg` 같은 이중 확장자는 거부한다.
-- 업로드 파일명은 UUID로 재생성하며 원본 파일명은 저장 경로에 사용하지 않는다. `UPLOAD_DIR`은 웹 루트 밖의 실행 불가 경로로 설정한다.
+- 업로드 파일명은 UUID로 재생성하며 원본 파일명은 저장 경로에 사용하지 않는다. 개발/테스트의 `UPLOAD_DIR`은 `./uploads`를 사용할 수 있고, 운영은 웹 루트 밖의 실행 불가 경로를 명시한다.
 - 정지된 사용자는 기존 accessToken이 남아 있어도 공통 인증 단계에서 HTTP API 접근이 401로 차단된다.
 
 ## Chats API
@@ -227,7 +227,7 @@ Docker/DB 검증 결과:
 - `npm run db:seed`: 2회 연속 실행 통과
 - `npm run start`: Nest application successfully started 확인. 서버 프로세스를 남기지 않기 위해 검증 시 timeout으로 종료
 
-Seed 계정:
+개발/테스트 Seed 계정:
 
 - `seller@example.com` / `Password123!`
 - `buyer@example.com` / `Password123!`
@@ -236,6 +236,8 @@ Seed 계정:
 - `banned@example.com` / `Password123!` (`BANNED`)
 - `secondbuyer@example.com` / `Password123!`
 - `secondseller@example.com` / `Password123!`
+
+`admin@example.com` / `Password123!`는 개발/테스트 seed 전용 계정이다. 운영 환경에서는 seed 실행이 차단되며 admin 비밀번호를 프론트엔드 소스에 넣지 않는다.
 
 Seed 데이터:
 

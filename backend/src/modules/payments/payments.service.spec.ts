@@ -135,6 +135,7 @@ describe('PaymentsService', () => {
     provider = createProviderMock();
     verifier = new TossWebhookVerifier('webhook-secret');
     service = new PaymentsService(prisma, provider, verifier, {
+      providerMode: 'toss',
       tossClientKey: 'test_ck',
       successUrl: 'http://localhost:5173/payments/success',
       failUrl: 'http://localhost:5173/payments/fail',
@@ -182,6 +183,37 @@ describe('PaymentsService', () => {
     });
     expect(result.amount).toBe(product.price);
     expect(result.checkout.clientKey).toBe('test_ck');
+  });
+
+  it('marks checkout responses as mock when the local provider mode is enabled', async () => {
+    service = new PaymentsService(prisma, provider, verifier, {
+      tossClientKey: 'mock_checkout',
+      providerMode: 'mock',
+      successUrl: 'http://localhost:5173/payments/success',
+      failUrl: 'http://localhost:5173/payments/fail',
+      cancelUrl: 'http://localhost:5173/payments/cancel',
+    } as never);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue({
+      ...transaction,
+      payment: null,
+    });
+    vi.mocked(prisma.payment.create).mockResolvedValue(payment);
+    vi.mocked(prisma.transaction.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({
+      id: 'audit-1',
+      userId: buyer.id,
+      event: 'PAYMENT_CREATED',
+      ip: null,
+      detail: '{}',
+      createdAt: new Date(),
+    });
+
+    const result = await service.createPayment(buyer.id, {
+      transactionId: transaction.id,
+      idempotencyKey: payment.idempotencyKey,
+    });
+
+    expect(result.checkout.providerMode).toBe('mock');
   });
 
   it('rejects payment creation by a non-buyer', async () => {

@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LockKeyhole,
   Mail,
-  MessageCircle,
   ShieldCheck,
   Store,
   UserRound,
@@ -49,7 +48,6 @@ export function LoginPage() {
     } catch (error) {
       const message = getLoginErrorMessage(error, { email });
       setFormError(message);
-      showToast(message, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -71,7 +69,6 @@ export function LoginPage() {
     } catch (error) {
       const message = getLoginErrorMessage(error, { email: demoEmail });
       setFormError(message);
-      showToast(message, 'error');
     } finally {
       setDemoLoading(null);
     }
@@ -136,20 +133,6 @@ export function LoginPage() {
             로그인
           </Button>
         </form>
-
-        <div className="auth-secondary-actions">
-          <Link to="/forgot-password">비밀번호를 잊으셨나요?</Link>
-        </div>
-
-        <div className="auth-social">
-          <Button
-            icon={<MessageCircle size={17} />}
-            onClick={() => showToast('카카오 로그인은 준비 중입니다.', 'info')}
-            variant="secondary"
-          >
-            카카오로 계속하기
-          </Button>
-        </div>
 
         {showDemoLogin ? (
           <section className="demo-login" aria-label="체험 계정 로그인">

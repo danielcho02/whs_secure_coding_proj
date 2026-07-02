@@ -161,6 +161,11 @@ export function TransactionDetailPage() {
   const role = transaction?.buyer.id === user?.id ? 'buyer' : 'seller';
   const terminalNotice = transaction ? getTerminalNotice(transaction.status) : null;
   const isTerminal = transaction ? isTerminalStatus(transaction.status) : false;
+  const isPaymentPaid = payment?.status === 'PAID';
+  const canUsePaidPaymentActions =
+    !isTerminal && role === 'buyer' && isPaymentPaid;
+  const canSellerCompleteTransaction =
+    !isTerminal && role === 'seller' && transaction?.status === 'SHIPPING';
 
   const actionMutation = useMutation({
     mutationFn: async (action: 'reserve' | 'cancel' | 'complete') => {
@@ -194,6 +199,11 @@ export function TransactionDetailPage() {
     },
     onSuccess: async (createdPayment) => {
       setPayment(createdPayment);
+      if (createdPayment.checkout.providerMode === 'mock') {
+        showToast('로컬 결제 시뮬레이션을 준비했습니다.', 'info');
+        return;
+      }
+
       try {
         await requestTossCheckout(createdPayment);
       } catch (error) {
@@ -205,10 +215,35 @@ export function TransactionDetailPage() {
     },
   });
 
+  const localApproveMutation = useMutation({
+    mutationFn: () => {
+      if (!payment) {
+        throw new Error('PAYMENT_REQUIRED');
+      }
+
+      return approvePayment(payment.id, {
+        paymentKey: `mock_${payment.id}`,
+        orderId: payment.orderId,
+        amount: payment.amount,
+      });
+    },
+    onSuccess: async (updatedPayment) => {
+      setPayment(updatedPayment);
+      await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      showToast('로컬 결제가 승인되었습니다.', 'success');
+    },
+    onError: (error) => {
+      showToast(toFriendlyError(error).message, 'error');
+    },
+  });
+
   const confirmPaymentMutation = useMutation({
     mutationFn: () => confirmPayment(payment?.id ?? ''),
-    onSuccess: (updatedPayment) => {
+    onSuccess: async (updatedPayment) => {
       setPayment(updatedPayment);
+      await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       showToast('구매확정이 완료되었습니다.', 'success');
     },
     onError: (error) => {
@@ -218,8 +253,10 @@ export function TransactionDetailPage() {
 
   const refundMutation = useMutation({
     mutationFn: () => requestRefund(payment?.id ?? '', { reason: '구매자 환불 요청' }),
-    onSuccess: (updatedPayment) => {
+    onSuccess: async (updatedPayment) => {
       setPayment(updatedPayment);
+      await queryClient.invalidateQueries({ queryKey: ['transaction', transactionId] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       showToast('환불 요청을 전송했습니다.', 'success');
     },
     onError: (error) => {
@@ -308,6 +345,11 @@ export function TransactionDetailPage() {
 
       <section className="transaction-panel">
         <h2>가능한 작업</h2>
+        {!isTerminal ? (
+          <p className="transaction-panel__note">
+            {getTransactionStepGuide(transaction.status, role)}
+          </p>
+        ) : null}
         {!isTerminal &&
         role === 'buyer' &&
         (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (
@@ -324,7 +366,8 @@ export function TransactionDetailPage() {
               예약 승인
             </Button>
           ) : null}
-          {!isTerminal &&
+          {!payment &&
+          !isTerminal &&
           role === 'buyer' &&
           (transaction.status === 'RESERVED' || transaction.status === 'PAYMENT_PENDING') ? (
             <Button
@@ -333,6 +376,19 @@ export function TransactionDetailPage() {
               onClick={() => paymentMutation.mutate()}
             >
               안전결제 진행
+            </Button>
+          ) : null}
+          {!isTerminal &&
+          role === 'buyer' &&
+          payment?.checkout.providerMode === 'mock' &&
+          payment.status === 'PENDING' ? (
+            <Button
+              icon={<CreditCard size={17} />}
+              loading={localApproveMutation.isPending}
+              onClick={() => localApproveMutation.mutate()}
+              variant="secondary"
+            >
+              로컬 결제 승인
             </Button>
           ) : null}
           {!isTerminal ? (
@@ -344,7 +400,7 @@ export function TransactionDetailPage() {
               거래 취소
             </Button>
           ) : null}
-          {!isTerminal && role === 'buyer' && (transaction.status === 'PAID' || transaction.status === 'SHIPPING') ? (
+          {canSellerCompleteTransaction ? (
             <Button
               icon={<CheckCircle2 size={17} />}
               onClick={() => setConfirmAction('complete')}
@@ -352,7 +408,7 @@ export function TransactionDetailPage() {
               거래 완료
             </Button>
           ) : null}
-          {!isTerminal && payment ? (
+          {canUsePaidPaymentActions ? (
             <>
               <Button
                 icon={<CheckCircle2 size={17} />}
@@ -668,4 +724,29 @@ function getTerminalNotice(
   }
 
   return null;
+}
+
+function getTransactionStepGuide(
+  status: TransactionStatus,
+  role: 'buyer' | 'seller',
+): string {
+  if (status === 'REQUESTED') {
+    return role === 'seller'
+      ? '구매 요청을 확인하고 거래 가능하면 예약 승인해주세요.'
+      : '판매자가 예약 승인하면 안전결제를 진행할 수 있습니다.';
+  }
+
+  if (status === 'RESERVED' || status === 'PAYMENT_PENDING') {
+    return role === 'buyer'
+      ? '예약된 거래입니다. 안전결제를 완료하면 판매자가 전달을 준비합니다.'
+      : '구매자의 안전결제 완료를 기다리는 단계입니다.';
+  }
+
+  if (status === 'PAID' || status === 'SHIPPING') {
+    return role === 'seller'
+      ? '결제가 완료되었습니다. 물건 전달 후 거래 완료로 변경해주세요.'
+      : '결제가 보호 중입니다. 물건을 받은 뒤 구매확정을 진행할 수 있습니다.';
+  }
+
+  return '거래 상태를 확인하고 가능한 작업을 진행해주세요.';
 }

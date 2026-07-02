@@ -1,6 +1,6 @@
 import { Camera, ImageOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { isPlaceholderImageUrl } from './imageUrl';
+import { isPlaceholderImageUrl, toDisplayImageUrl } from './imageUrl';
 
 interface ImageFallbackProps {
   src?: string | null;
@@ -17,18 +17,19 @@ export function ImageFallback({
   src,
   title,
 }: ImageFallbackProps) {
-  const shouldLoadImage = Boolean(src) && !isPlaceholderImageUrl(src);
+  const displaySrc = toDisplayImageUrl(src);
+  const shouldLoadImage = Boolean(displaySrc) && !isPlaceholderImageUrl(displaySrc);
   const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>(
     shouldLoadImage ? 'loading' : 'failed',
   );
 
   useEffect(() => {
     setStatus(shouldLoadImage ? 'loading' : 'failed');
-  }, [shouldLoadImage, src]);
+  }, [displaySrc, shouldLoadImage]);
 
   return (
     <span className={`image-fallback-frame ${className}`.trim()}>
-      {shouldLoadImage && src && status !== 'failed' ? (
+      {shouldLoadImage && displaySrc && status !== 'failed' ? (
         <img
           alt={status === 'loaded' ? alt : ''}
           aria-hidden={status !== 'loaded'}
@@ -37,7 +38,7 @@ export function ImageFallback({
           loading="lazy"
           onError={() => setStatus('failed')}
           onLoad={() => setStatus('loaded')}
-          src={src}
+          src={displaySrc}
         />
       ) : null}
       {status !== 'loaded' ? (

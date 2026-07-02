@@ -31,7 +31,11 @@ function createPrismaMock(): PrismaService {
       findMany: vi.fn(),
       findUnique: vi.fn(),
     },
+    notification: {
+      createMany: vi.fn(),
+    },
     user: {
+      findMany: vi.fn(),
       findUnique: vi.fn(),
     },
     $queryRawUnsafe: vi.fn(),
@@ -75,6 +79,10 @@ describe('ReportsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createPrismaMock();
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: '77777777-7777-4777-8777-777777777777' },
+    ]);
+    vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 1 });
     service = new ReportsService(prisma);
   });
 
@@ -89,6 +97,7 @@ describe('ReportsService', () => {
     });
     vi.mocked(prisma.report.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.report.create).mockResolvedValue(reportRecord);
+    vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 1 });
 
     const result = await service.createReport(reporterId, {
       targetType: ReportType.PRODUCT,
@@ -111,6 +120,16 @@ describe('ReportsService', () => {
     );
     expect(result.reporterId).toBe(reporterId);
     expect(result.status).toBe(ReportStatus.PENDING);
+    expect(prisma.notification.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          type: 'ADMIN_REPORT',
+          message: '새로운 신고가 접수되었습니다.',
+          targetType: 'REPORT',
+          targetId: reportRecord.id,
+        }),
+      ],
+    });
   });
 
   it('rejects reports for a missing target', async () => {

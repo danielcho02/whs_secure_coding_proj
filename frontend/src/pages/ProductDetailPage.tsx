@@ -94,7 +94,9 @@ export function ProductDetailPage() {
     mutationFn: (nextStatus: SellerProductStatus) =>
       updateProductStatus(productId ?? '', nextStatus),
     onSuccess: async (updated) => {
-      await queryClient.invalidateQueries({ queryKey: ['product', updated.id] });
+      await queryClient.invalidateQueries({
+        queryKey: ['product', updated.id],
+      });
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       showToast('상품 상태를 변경했습니다.', 'success');
     },
@@ -116,7 +118,8 @@ export function ProductDetailPage() {
   });
 
   const product = productQuery.data;
-  const selectedImage = product?.images[selectedImageIndex]?.url ?? product?.images[0]?.url ?? null;
+  const selectedImage =
+    product?.images[selectedImageIndex]?.url ?? product?.images[0]?.url ?? null;
   const isOwner = Boolean(product && user?.id === product.seller.id);
 
   const handleFavorite = async () => {
@@ -201,7 +204,9 @@ export function ProductDetailPage() {
           src={selectedImage}
           title={product.title}
         />
-        <span className={`status-chip status-chip--${statusClass(product.status)}`}>
+        <span
+          className={`status-chip status-chip--${statusClass(product.status)}`}
+        >
           {productStatusLabel(product.status)}
         </span>
       </section>
@@ -255,12 +260,20 @@ export function ProductDetailPage() {
         </div>
 
         <section className="seller-band" aria-label="판매자 정보">
-          <div className="seller-band__avatar">{product.seller.nickname.slice(0, 1)}</div>
+          <div className="seller-band__avatar">
+            {product.seller.nickname.slice(0, 1)}
+          </div>
           <div>
             <strong>{product.seller.nickname}</strong>
-            <span>
-              {trustDetail(product.seller.completedTx, product.seller.trustScore)}
+            <span title="신뢰도는 최대 5점이며 완료 거래와 후기 기반으로 표시됩니다.">
+              {trustDetail(
+                product.seller.completedTx,
+                product.seller.trustScore,
+              )}
             </span>
+            <small className="seller-band__help">
+              신뢰도는 최대 5점 기준입니다.
+            </small>
           </div>
           <ShieldCheck size={20} />
         </section>
@@ -279,17 +292,22 @@ export function ProductDetailPage() {
               >
                 수정
               </Button>
-              {(['ON_SALE', 'RESERVED', 'SOLD'] as SellerProductStatus[]).map((nextStatus) => (
-                <Button
-                  disabled={product.status === nextStatus}
-                  key={nextStatus}
-                  loading={statusMutation.isPending && statusMutation.variables === nextStatus}
-                  onClick={() => statusMutation.mutate(nextStatus)}
-                  variant="quiet"
-                >
-                  {productStatusLabel(nextStatus)}
-                </Button>
-              ))}
+              {(['ON_SALE', 'RESERVED', 'SOLD'] as SellerProductStatus[]).map(
+                (nextStatus) => (
+                  <Button
+                    disabled={product.status === nextStatus}
+                    key={nextStatus}
+                    loading={
+                      statusMutation.isPending &&
+                      statusMutation.variables === nextStatus
+                    }
+                    onClick={() => statusMutation.mutate(nextStatus)}
+                    variant="quiet"
+                  >
+                    {productStatusLabel(nextStatus)}
+                  </Button>
+                ),
+              )}
               <Button
                 icon={<Trash2 size={17} />}
                 onClick={() => setDeleteOpen(true)}
@@ -301,16 +319,27 @@ export function ProductDetailPage() {
           </section>
         ) : (
           <section className="safety-strip" aria-label="안전 도구">
-            <Button icon={<Flag size={17} />} onClick={() => setReportOpen(true)} variant="quiet">
+            <Button
+              icon={<Flag size={17} />}
+              onClick={() => setReportOpen(true)}
+              variant="quiet"
+            >
               상품 신고
             </Button>
-            <Button icon={<Ban size={17} />} onClick={() => setBlockOpen(true)} variant="quiet">
+            <Button
+              icon={<Ban size={17} />}
+              onClick={() => setBlockOpen(true)}
+              variant="quiet"
+            >
               판매자 차단
             </Button>
           </section>
         )}
 
-        <section className="detail-description" aria-labelledby="description-title">
+        <section
+          className="detail-description"
+          aria-labelledby="description-title"
+        >
           <h2 id="description-title">상품 설명</h2>
           <p>{product.description}</p>
         </section>

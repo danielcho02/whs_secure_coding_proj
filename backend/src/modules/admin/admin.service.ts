@@ -221,6 +221,17 @@ export class AdminService {
       },
     });
 
+    await this.prisma.notification.create({
+      data: {
+        userId: report.reporterId,
+        type: 'REPORT',
+        message: '회원님이 접수한 신고가 처리되었습니다.',
+        targetType: 'REPORT',
+        targetId: reportId,
+      },
+      select: { id: true },
+    });
+
     return this.toReportResponse(updatedReport);
   }
 

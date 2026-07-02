@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, LockKeyhole, Mail, MessageCircle, UserRound } from 'lucide-react';
+import { CheckCircle2, LockKeyhole, Mail, UserRound } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import { toFriendlyError } from '../api/errors';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -102,16 +102,6 @@ export function RegisterPage() {
             가입하기
           </Button>
         </form>
-
-        <div className="auth-social">
-          <Button
-            icon={<MessageCircle size={17} />}
-            onClick={() => showToast('카카오 로그인은 준비 중입니다.', 'info')}
-            variant="secondary"
-          >
-            카카오로 계속하기
-          </Button>
-        </div>
 
         <p className="auth-switch">
           이미 계정이 있나요? <Link to="/login">로그인</Link>

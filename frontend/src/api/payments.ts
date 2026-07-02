@@ -29,6 +29,7 @@ export interface PaymentTransactionSummary {
 }
 
 export interface PaymentCheckout {
+  providerMode: 'mock' | 'toss';
   clientKey: string;
   customerKey: string;
   orderId: string;

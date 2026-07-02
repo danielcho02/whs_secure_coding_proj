@@ -39,6 +39,9 @@ function createPrismaMock(): PrismaService {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    notification: {
+      create: vi.fn(),
+    },
     transaction: {
       count: vi.fn(),
     },
@@ -112,6 +115,9 @@ describe('AdminService', () => {
       detail: '{}',
       createdAt: new Date(),
     });
+    vi.mocked(prisma.notification.create).mockResolvedValue({
+      id: 'notification-1',
+    });
 
     const result = await service.updateReportStatus(adminId, reportRecord.id, {
       status: ReportStatus.RESOLVED,
@@ -138,6 +144,16 @@ describe('AdminService', () => {
         }),
       }),
     );
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: reportRecord.reporterId,
+        type: 'REPORT',
+        message: '회원님이 접수한 신고가 처리되었습니다.',
+        targetType: 'REPORT',
+        targetId: reportRecord.id,
+      }),
+      select: { id: true },
+    });
     expect(result.status).toBe(ReportStatus.RESOLVED);
   });
 
