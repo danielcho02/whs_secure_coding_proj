@@ -6,7 +6,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus, TxStatus, UserStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  ProductStatus,
+  TxStatus,
+  UserStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -119,7 +125,7 @@ const CANCELLABLE_STATUSES = [
   TxStatus.PAYMENT_PENDING,
 ] as const;
 
-const COMPLETABLE_STATUSES = [TxStatus.RESERVED, TxStatus.SHIPPING] as const;
+const COMPLETABLE_STATUSES = [TxStatus.PAID, TxStatus.SHIPPING] as const;
 
 type ProductForTransaction = Prisma.ProductGetPayload<{
   select: typeof PRODUCT_FOR_TRANSACTION_SELECT;
@@ -315,6 +321,19 @@ export class TransactionsService {
 
       if (!this.isCompletableStatus(transaction.status)) {
         throw new BadRequestException('Transaction cannot be completed');
+      }
+
+      const paidPayment = await tx.payment.findFirst({
+        where: {
+          transactionId: transaction.id,
+          status: PaymentStatus.PAID,
+          escrowReleased: false,
+        },
+        select: { id: true },
+      });
+
+      if (!paidPayment) {
+        throw new BadRequestException('Paid payment is required');
       }
 
       const productUpdate = await tx.product.updateMany({

@@ -8,13 +8,13 @@
 | 상품 | CRUD, 검색, 내 상품, 찜, 작성자 검증, DTO whitelist 구현됨 | mock 아님 | `backend/src/modules/products`, `frontend/src/pages/HomePage.tsx`, `ProductDetailPage.tsx`, `ProductFormPage.tsx` | 실제 e2e 증거는 부족. 공개/숨김/소유자 정책은 통합 검증 필요 |
 | 상품 이미지 업로드 | Fastify multipart, 확장자/MIME/시그니처/UUID 저장 검증 구현됨 | mock 아님. 프론트 업로드는 등록/수정 폼에 연결됨 | `backend/src/modules/products/products.controller.ts`, `products.service.ts`, `frontend/src/api/products.ts` | 이미지 저장 경로/정적 제공/실제 업로드 e2e 증거 필요 |
 | 채팅 | REST 채팅방/메시지와 Socket.IO gateway 구현됨. 참여자 검증과 WS 보안 테스트 추가됨 | mock 아님 | `backend/src/modules/chats`, `frontend/src/pages/ChatsPage.tsx` | 브라우저 기반 Socket.IO e2e 증거는 아직 부족 |
-| 거래 | 요청/예약/취소/완료/상세/후기, 서버 기준 amount, 상태 전이 구현됨 | mock 아님 | `backend/src/modules/transactions`, `frontend/src/pages/TransactionsPage.tsx` | 동시성/중복 판매는 단위 테스트 중심. DB 기반 race 증거 필요 |
+| 거래 | 요청/예약/취소/완료/상세/후기, 서버 기준 amount, 상태 전이 구현됨 | mock 아님 | `backend/src/modules/transactions`, `frontend/src/pages/TransactionsPage.tsx` | 동시 예약 방어 테스트는 추가됨. 실제 브라우저/운영 DB e2e 증거는 추가 필요 |
 | 안전결제/에스크로 | 결제 생성, Toss approve, webhook HMAC, confirm/refund/receipt 구현됨 | provider mock 테스트 존재. 실제 Toss sandbox 수동 검증 필요 | `backend/src/modules/payments`, `frontend/src/api/payments.ts`, `TransactionsPage.tsx` | 외부 test key/webhook endpoint 없이 실제 승인/취소 증거 미확보 |
 | 신고 | USER/PRODUCT/CHAT 신고, 내 신고 목록 구현됨 | mock 아님 | `backend/src/modules/reports`, `frontend/src/pages/ReportsPage.tsx` | 프론트에서 신고 생성 진입점이 제한적이면 연결 보강 필요 |
 | 관리자 | 신고/상품/사용자/로그 API와 Admin UI 구현됨. RolesGuard와 AdminLog 보안 테스트 추가됨 | mock 아님 | `backend/src/modules/admin`, `frontend/src/pages/AdminPages.tsx` | 관리자 액션의 HTTP e2e/스크린샷 증거는 추가 필요 |
 | 알림 | 본인 알림 조회/읽음 처리, 채팅/결제 연동 일부 구현됨 | mock 아님 | `backend/src/modules/notifications`, `frontend/src/pages/NotificationsPage.tsx` | 알림 생성 트리거 범위가 도메인별로 불균형할 수 있어 점검 필요 |
-| 프론트 API 연결 | 대부분 실제 API 사용. axios refresh, React Query, WS 연결 구현됨. unsupported/mock-only UI 제거 작업 진행됨 | 실제 mock-only UI 노출 없음 | `frontend/src/api/*`, `frontend/src/pages/*` | 정적 grep 결과 `전달 준비` 상태 라벨과 이미지 fallback 문구만 남음 |
-| 보안 테스트 | Vitest 단위/컨트롤러/DTO 테스트 풍부. 최근 문서상 231 tests 통과 기록 | e2e 디렉터리 없음 | `backend/src/**/*.spec.ts`, `docs/test-checklist.md`, `docs/security-review-log.md` | `backend/test`, `backend/test/e2e`, 루트 `test` 없음. 보고서용 자동 e2e 증거 필요 |
+| 프론트 API 연결 | 대부분 실제 API 사용. axios refresh, React Query, WS 연결 구현됨. unsupported/mock-only UI 제거 작업 진행됨 | 실제 mock-only UI 노출 없음. 결제 local mock은 development/test 설정에서만 사용 | `frontend/src/api/*`, `frontend/src/pages/*` | mock payment 문자열은 dev/test 결제 시뮬레이션에 존재하므로 production 설정 검증과 분리 필요 |
+| 보안 테스트 | Vitest 단위/컨트롤러/DTO 테스트 풍부. 최종 재검증 기준 42 files / 292 tests 통과 | e2e 디렉터리 없음 | `backend/src/**/*.spec.ts`, `docs/test-checklist.md`, `docs/security-review-log.md`, `docs/security-report/**` | `backend/test`, `backend/test/e2e`, 루트 `test` 없음. 브라우저/HTTP e2e 증거는 추가 필요 |
 
 ## 2. 실제 서비스형 구현 우선순위
 
@@ -28,7 +28,7 @@
 | 6 | 안전결제/에스크로 시뮬레이션 | 결제 생성/approve/webhook/confirm/refund를 test provider와 HMAC으로 검증 | FR-30~38 | SR-22~28, SR-30, SR-35, SR-37 | amount 조작/webhook 위조 거부, escrowReleased 정책 통과 | 결제 보안 테스트 결과 |
 | 7 | 신고/관리자 실제 연결 | 신고 생성 진입점 보강, 관리자 처리/로그 UI/API 검증 | FR-39~46 | SR-05, SR-09, SR-15, SR-28, SR-36, SR-39 | 일반 사용자 admin 접근 403, AdminLog 생성 | admin guard/action 로그 증거 |
 | 8 | 알림 실제 연결 | 채팅/거래/신고 처리 알림 트리거 점검 및 누락 보강 | FR-47~50 | SR-39 | 본인 알림만 조회/읽음, 타인 알림 404 | notification BOLA 테스트 |
-| 9 | 프론트 mock 제거 | 준비 중 버튼/페이지 제거, api-spec 없는 기능 숨김, 실제 API 오류/빈 상태 정리 | NFR-01, NFR-09 | SR-15, SR-39 | `rg mock|dummy|준비|coming soon|Placeholder` 결과가 의도된 항목만 남음 | grep 결과, 화면 캡처 |
+| 9 | 프론트 mock 제거 | 준비 중 버튼/페이지 제거, api-spec 없는 기능 숨김, 실제 API 오류/빈 상태 정리 | NFR-01, NFR-09 | SR-15, SR-39 | unsupported mock-only 화면은 제거하고, dev/test 결제 mock 문자열은 production 설정 검증과 분리 | grep 결과, 화면 캡처 |
 | 10 | 보안 e2e 테스트 | 취약점별 자동화 테스트와 보고서 증거 매트릭스 생성 | NFR-08 | 전체 SR | e2e + unit + build 통과 | `docs/report-prep/*` 증거 문서 |
 
 ## 3. 대규모 구현 단계 분리
@@ -68,7 +68,7 @@
 - 목표: 신고 접수부터 관리자 처리, AdminLog, 사용자 알림까지 실제 API로 연결한다.
 - 수정 예상 파일: `backend/src/modules/reports/*`, `admin/*`, `notifications/*`, `frontend/src/pages/AdminPages.tsx`, `ReportsPage.tsx`, `NotificationsPage.tsx`.
 - 테스트: 일반 사용자 admin 접근 403, role 주입 거부, 신고 중복 409, 타인 알림 읽음 404.
-- 완료 기준: 관리자 조치마다 AdminLog가 생성되고 관련 알림이 본인에게만 노출.
+- 완료 기준: 정상 관리자 조치마다 AdminLog가 생성되고 관련 알림이 본인에게만 노출. 운영 전에는 관리자 조치와 AdminLog insert의 transaction 원자성 보강 필요.
 - 현재 증거: `backend/src/modules/admin/admin-security.spec.ts` 추가. 관리자 controller guard/role metadata, USER 차단, role/status 주입 거부, 상품 숨김/사용자 제재/신고 처리 AdminLog 생성을 자동화했다.
 - 남은 작업: 관리자 HTTP e2e, 신고 처리 후 알림 생성 여부, 관리자 UI 스크린샷 증거를 보강한다.
 
@@ -78,7 +78,7 @@
 - 수정 예상 파일: `frontend/src/App.tsx`, `frontend/src/pages/ForgotPasswordPage.tsx`, `LoginPage.tsx`, `RegisterPage.tsx`, `MePage.tsx`, `PlaceholderPage.tsx`.
 - 테스트: 프론트 build/lint, `rg "mock|dummy|TODO|준비|coming soon|PlaceholderPage"` 정적 확인.
 - 완료 기준: api-spec에 없는 기능은 노출하지 않고, 노출된 화면은 실제 API를 호출한다.
-- 현재 증거: `rg "mock|dummy|TODO|coming soon|준비|PlaceholderPage|ForgotPasswordPage|dummyimage|카카오|Kakao" frontend/src` 결과는 배송 상태 라벨 `전달 준비`와 이미지 fallback `사진 준비중`만 남았다. `localStorage/sessionStorage` 토큰 저장과 production `dangerouslySetInnerHTML` 사용은 발견되지 않았다.
+- 현재 증거: unsupported mock-only 화면과 준비 중 페이지는 제거됐다. 다만 local payment simulation을 위한 `providerMode === 'mock'` 문자열은 development/test 흐름에 존재하므로, production `PAYMENT_PROVIDER_MODE=mock` 거부 테스트와 분리해 해석한다. `localStorage/sessionStorage` 토큰 저장과 production `dangerouslySetInnerHTML` 사용은 발견되지 않았다.
 
 ### Phase G. 보안 e2e 테스트와 보고서 증거 확보
 
@@ -97,9 +97,9 @@
 | SQL Injection | Prisma ORM 사용, production `$queryRawUnsafe` 없음 | 검색/관리자 q 필터 전부 Prisma 조건 유지 | SQLi payload가 데이터 노출/500을 만들지 않음 | grep + 검색 테스트 |
 | 파일 업로드 취약점 | 확장자/MIME/시그니처/UUID 검사 구현, Fastify multipart 통합 테스트 추가 | 정적 파일 제공 정책 점검 | 정상 PNG 성공, SVG/PHP/JSP/HTML/이중확장자/위장 MIME 거부, 타 사용자 403 | `backend/src/modules/products/products-upload.multipart.spec.ts`, `docs/report-prep/security-evidence-matrix.md` |
 | 결제 금액 조작 | 결제/거래 amount 서버 계산 구현 | 프론트/백엔드 payload에서 amount 제거 유지 | `amount: 100` 주입 400 또는 무시, DB price 저장 | 결제 생성 테스트 |
-| 관리자 권한 우회 | JwtAuthGuard + RolesGuard + ADMIN 적용. AdminLog 생성 테스트 추가 | 모든 admin controller guard reflection/e2e 고정 | 일반 USER `/admin/*` 403, role query/body 거부, AdminLog 생성 | `admin-security.spec.ts`, admin guard 테스트 |
+| 관리자 권한 우회 | JwtAuthGuard + RolesGuard + ADMIN 적용. 정상 경로 AdminLog 생성 테스트 추가 | 모든 admin controller guard reflection/e2e 고정, AdminLog 원자성 보강 | 일반 USER `/admin/*` 403, role query/body 거부, AdminLog 생성 | `admin-security.spec.ts`, admin guard 테스트 |
 | CSRF | refresh cookie SameSite 정책 있음 | 상태변경 API의 Authorization 요구와 SameSite 설정 증거화 | 쿠키만 있고 Bearer 없는 변경 요청 401 | auth/session 테스트 |
-| Race Condition | 거래 예약 시 상품 상태 조건부 update 패턴 존재, 동시 예약 race 테스트 추가 | 결제 동시성 테스트 추가 | 같은 상품 동시 예약 2건 중 1건만 성공, 나머지 Conflict | `backend/src/modules/transactions/transactions-race.spec.ts`, `docs/report-prep/security-evidence-matrix.md` |
+| Race Condition | 거래 예약 시 상품 상태 조건부 update 패턴 존재, 동시 예약 race 테스트 추가 | 결제 동시성 테스트 추가 | 같은 상품 동시 예약 2건 중 1건만 성공, 나머지 Conflict | `backend/src/modules/transactions/transactions-race.spec.ts`, `docs/report-prep/security-evidence-matrix.md`, `docs/security-report/09-race-condition.md` |
 | Mass Assignment | DTO whitelist/forbidNonWhitelisted 구현 | 모든 DTO 권한 필드 주입 케이스 보강 | role/sellerId/userId/price/status 주입 400 | DTO 테스트 결과 |
 | Rate Limit | ThrottlerModule 전역 설정 | 로그인/결제/채팅에 더 엄격한 route throttle 검토 | 반복 로그인/결제 요청 429 | rate limit 테스트 |
 | 민감정보 노출 | 응답 DTO/선택 필드로 passwordHash/email/phone 제외 | 전 도메인 응답 snapshot 또는 assertion 보강 | passwordHash/token/secret 미포함 | grep + 응답 테스트 |
@@ -115,7 +115,7 @@
 | 관리자 USER 접근 차단 | 완료 | `backend/src/modules/admin/admin-security.spec.ts`, `roles.guard.spec.ts` | HTTP e2e 403 증거 |
 | 관리자 액션 AdminLog | 완료 | `backend/src/modules/admin/admin-security.spec.ts`, `admin.service.spec.ts` | 관리자 UI/스크린샷 증거 |
 | 신고 처리 후 알림 | 확인필요 | 현재 AdminLog 중심 검증 | notification 생성 정책 확정 및 테스트 |
-| 전체 QA | 완료 | `docs/report-prep/security-test-plan.md` | 최종 보고서용 실행 로그 캡처 |
+| 전체 QA | 완료 | `docs/report-prep/security-test-plan.md`, `docs/security-report/evidence/test-results.md` | 운영 배포 전 브라우저 e2e 캡처 추가 |
 
 ## 5. 첫 구현 작업 추천
 

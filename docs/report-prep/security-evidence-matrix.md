@@ -6,7 +6,7 @@
 | Race Condition / 중복 판매 | FR-24, FR-29, SR-08, SR-15, SR-26 | `backend/src/modules/transactions/transactions-race.spec.ts` | 같은 상품의 두 `REQUESTED` 거래를 동시에 예약할 때 1건만 `RESERVED` 성공, 나머지는 `ConflictException`, 중복 Transaction/Payment 생성 없음 | 통과 |
 | Chat WS Security / BOLA | FR-16~19, SR-07, SR-13, SR-35 | `backend/src/modules/chats/chats-ws-security.spec.ts` | WS handshake 인증 실패 거부, JWT subject 기준 사용자 식별, 비참여자 join/message 거부, 메시지 broadcast 차단 | 통과 |
 | Stored XSS / 채팅 | FR-17, SR-13 | `backend/src/modules/chats/chats-ws-security.spec.ts`, `backend/src/modules/chats/chats.service.spec.ts`, 정적 grep | `<img src=x onerror=alert(1)>` payload를 문자열 content로만 저장/전달하고 `html`/`dangerouslySetInnerHTML` 응답 구조 없음 | 통과 |
-| 관리자 권한 우회 / AdminLog | FR-42~46, SR-05, SR-09, SR-15, SR-28, SR-36 | `backend/src/modules/admin/admin-security.spec.ts`, `backend/src/modules/admin/admin.controllers.spec.ts`, `backend/src/common/guards/roles.guard.spec.ts` | `/admin/*` controller guard/ADMIN role 고정, USER role 차단, role/status 주입 DTO 거부, 상품 숨김/사용자 제재/신고 처리 시 AdminLog 생성 | 통과 |
+| 관리자 권한 우회 / AdminLog | FR-42~46, SR-05, SR-09, SR-15, SR-28, SR-36 | `backend/src/modules/admin/admin-security.spec.ts`, `backend/src/modules/admin/admin.controllers.spec.ts`, `backend/src/common/guards/roles.guard.spec.ts` | `/admin/*` controller guard/ADMIN role 고정, USER role 차단, role/status 주입 DTO 거부, 정상 경로의 상품 숨김/사용자 제재/신고 처리 시 AdminLog 생성 | 통과. 단, AdminLog insert 원자성은 잔존 위험 |
 
 ## 파일 업로드 상세 증거
 
@@ -37,7 +37,8 @@
 
 - 관리자 controller는 class metadata 기준 `JwtAuthGuard`, `RolesGuard`, `@Roles(Role.ADMIN)`을 요구한다.
 - `RolesGuard`는 ACTIVE USER의 관리자 접근을 `ForbiddenException`으로 차단하며, 차단된 요청은 service action/AdminLog 생성으로 진행하지 않는다.
-- ADMIN 상품 숨김은 `Product.isHidden=true`, `Product.status=HIDDEN`으로 변경하고 `AdminLog.action=HIDE_PRODUCT`를 기록한다.
-- ADMIN 사용자 제재는 `User.status=SUSPENDED`로 변경하고 `AdminLog.action=SUSPEND_USER`를 기록한다.
-- 신고 처리는 `Report.status=RESOLVED`와 `adminId/adminNote/reviewedAt` 갱신 후 `AdminLog.action=UPDATE_REPORT_STATUS`를 기록한다.
+- ADMIN 상품 숨김 정상 경로는 `Product.isHidden=true`, `Product.status=HIDDEN`으로 변경하고 `AdminLog.action=HIDE_PRODUCT`를 기록한다.
+- ADMIN 사용자 제재 정상 경로는 `User.status=SUSPENDED`로 변경하고 `AdminLog.action=SUSPEND_USER`를 기록한다.
+- 신고 처리 정상 경로는 `Report.status=RESOLVED`와 `adminId/adminNote/reviewedAt` 갱신 후 `AdminLog.action=UPDATE_REPORT_STATUS`를 기록한다.
+- 일부 관리자 상태 변경과 AdminLog insert는 같은 Prisma transaction으로 묶이지 않아, 장애 시 로그 원자성은 추가 보강이 필요하다.
 - 관리자 DTO는 `role`, `status`, `adminId`, `reporterId` 같은 권한/상태 필드 주입을 400으로 거부한다.

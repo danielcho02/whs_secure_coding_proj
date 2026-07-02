@@ -107,7 +107,7 @@ emit "message" { chatId, content }      → 발신자=참여자 확인 + escape(
 | POST | `/` | 거래 요청 | 인증(구매자) |
 | PATCH | `/:id/reserve` | 예약 처리 | 🔒 판매자만 (SR-08) |
 | PATCH | `/:id/cancel` | 취소 | 🔒 당사자만 (SR-08,26) |
-| PATCH | `/:id/complete` | 완료 처리 | 🔒 판매자만 (SR-08) |
+| PATCH | `/:id/complete` | 완료 처리 | 🔒 판매자만, persisted `PAID` payment 필요 (SR-08, SR-26) |
 | GET | `/` | 내 거래 내역 | 🔒 당사자만 (SR-35) |
 | GET | `/:id` | 거래 상세 | 🔒 구매자/판매자만 |
 | POST | `/:id/reviews` | 후기 작성 | 🔒 완료 거래 당사자만 |
@@ -115,6 +115,7 @@ emit "message" { chatId, content }      → 발신자=참여자 확인 + escape(
 > 🔒 상태 전이는 현재 상태 + 행위자 권한을 서버에서 검증(상태 머신). 클라가 보낸 목표 상태 그대로 적용 금지(SR-15).
 > 🔒 이미 SOLD 상품 중복 거래 차단(조건부 update + 트랜잭션).
 > 🔒 `GET /:id`는 UUID만 허용하고, 없는 거래와 비당사자 접근을 모두 404로 통일한다. 응답은 거래/상품 요약, buyer/seller 공개 요약, payment 안전 요약(id/status/escrowReleased/createdAt)만 포함한다.
+> 🔒 `PATCH /:id/complete`는 `RESERVED` 거래를 완료하지 않는다. 서버는 거래 상태가 `PAID|SHIPPING`인지와 해당 거래의 persisted `Payment.status=PAID`, `escrowReleased=false`를 확인한 뒤에만 `COMPLETED` 전이를 허용한다.
 
 ---
 
